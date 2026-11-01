@@ -1,51 +1,49 @@
 # Qgasto
 
-Aplicación móvil de finanzas personales, en español y con pesos chilenos (CLP). Permite registrar ingresos y gastos, gestionar cuentas y tarjetas, transferir dinero, controlar presupuestos mensuales, aportar a metas y exportar los datos a Excel.
+Finanzas personales en español y CLP: cuentas, ingresos, gastos, presupuestos, metas de ahorro y gastos recurrentes. Interfaz adaptable con modo claro/nocturno y almacenamiento local persistente.
 
-## Stack
-
-Expo SDK 58, React Native 0.88, React 19.3, TypeScript y Expo Router. TanStack Query administra el estado persistido, Zod valida datos y AsyncStorage permite usar el MVP sin credenciales. Supabase/PostgreSQL es la arquitectura prevista para autenticación y sincronización; se incluye una migración inicial con RLS. Excel usa SheetJS; FileSystem y Sharing permiten compartir archivos en el teléfono.
-
-## Desarrollo
+## Ejecutar
 
 Requiere Node.js 24 y npm 11.
 
 ```sh
 npm ci
-npm start
-# Navegador
 npm run web
-# Validaciones
+# Android/iOS: cliente compatible con Expo SDK 58 o development build
+npm start
+```
+
+Stack: Expo 58, React Native 0.88, React 19.3, Expo Router, TypeScript, TanStack Query, Zod, AsyncStorage, Supabase y SheetJS.
+
+## Funciones
+
+- Inicio con patrimonio bancario (sin tarjetas ni efectivo), cupos de tarjetas por separado, resumen mensual y avisos de presupuesto.
+- Cuentas corriente/vista, tarjetas y efectivo: nombre, banco/emisor, mantención mensual informativa y, en tarjetas, cupo y día de facturación. Edición de metadatos sin alterar el saldo inicial.
+- Ingresos y gastos con validación, advertencia de duplicados y selectores de calendario para fechas y meses.
+- Presupuestos por categoría, metas y aportes con control de saldo disponible.
+- Gastos recurrentes mensuales: recuperación de vencimientos al abrir la app, ejecución cada minuto mientras está abierta, pausa/reanudación e IDs idempotentes. Los días 29–31 se ajustan a meses cortos sin perder el día original. Reanudar recupera los vencimientos pendientes.
+- Ajustes: modo claro/nocturno persistido, cuenta, sincronización y respaldos.
+- **Copia JSON descargable y restaurable** con todos los datos financieros, incluidos recurrentes. Formato versionado, validación y confirmación antes de reemplazar el perfil actual. Sin contraseñas ni sesiones. Límite de importación de 10 MB. Guarda el archivo fuera de la app para recuperarlo después de reinstalar.
+- Excel para análisis; no se usa como formato de restauración.
+- Registro/inicio/cierre de sesión Supabase y sincronización de instantáneas con RLS y control de conflictos (requiere configurar proyecto).
+- Google Drive: conexión OAuth con `drive.file`, guardar/listar/restaurar copias JSON (requiere configurar Google en Supabase). Copias manuales; no hay backups automáticos con la app cerrada.
+
+Las opciones para crear transferencias se retiraron. Las transferencias **históricas** se conservan en los datos, saldos y exportaciones para no alterar registros anteriores. Los datos locales siguen disponibles sin cuentas externas; cada usuario autenticado tiene su propio perfil de dispositivo. La caché no sustituye a una copia externa y puede perderse al desinstalar o borrar almacenamiento.
+
+## Activar nube
+
+Consulta la [guía paso a paso para Supabase y Google](docs/cloud-setup.md). Sin esos proyectos configurados, la app muestra el estado de integración pendiente y permite usar todas las funciones locales. Nunca incluir `service_role` ni el secreto OAuth en el cliente.
+
+## Verificar
+
+```sh
 npm run typecheck
 npm test
 npm run build:web
+# Con dist servido en el puerto 8081 y Chromium disponible:
+npm run test:web
 ```
 
-En Android/iOS usa un cliente compatible con SDK 58 o un development build. Compilar iOS requiere macOS/Xcode; este entorno Linux valida TypeScript, reglas financieras y el bundle web.
+Las pruebas cubren reglas financieras, recurrentes, respaldo/restauración JSON y flujo de navegador con modo oscuro. La integración remota y las pruebas en teléfonos necesitan los servicios y dispositivos correspondientes.
 
-## MVP implementado
-
-- Inicio con saldos, ingresos y gastos del mes, actividad y alertas de presupuesto.
-- Cuentas bancarias, efectivo y tarjetas de crédito. Los saldos iniciales pueden ser negativos para representar deuda.
-- Ingresos y gastos con fecha, categoría, nota y advertencia de posibles duplicados.
-- Transferencias entre cuentas: no cuentan como ingreso ni gasto. Un pago a tarjeta es una transferencia; la compra se registra como gasto al realizarla.
-- Presupuestos por categoría y mes, metas y aportes vinculados a una cuenta de ahorro.
-- Persistencia local al reiniciar y exportación manual XLSX por intervalo de fechas, con nueve hojas.
-
-La aplicación empieza vacía; los datos se conservan en el dispositivo/navegador. No contiene cuentas de demostración ni envía información financiera a un servidor. Los aportes a metas asignan saldo disponible de una cuenta; para mover dinero entre cuentas registra primero una transferencia.
-
-## Backend y próximas etapas
-
-Consulta [arquitectura y alcance](docs/architecture.md). `supabase/migrations/202610310001_core.sql` prepara el núcleo multiusuario con RLS; todavía no está conectado al cliente. No introduzcas claves privadas en la aplicación.
-
-Pendiente: autenticación y sincronización Supabase, recurrentes automáticos, notificaciones, adjuntos, importación del Excel original, períodos personalizados y respaldo automático en Drive mediante OAuth `drive.file`, Edge Functions y Cron. La exportación actual es manual y local; las hojas de recurrentes y reportes muestran el alcance disponible.
-
-## Documento de referencia
-
-El PDF recibido contiene **3 páginas de resumen**, aunque hace referencia a una especificación de 26 páginas y a un Excel que no se adjuntaron. Las decisiones no detalladas allí se documentan como supuestos del MVP. Las versiones se verificaron en npm al iniciar el desarrollo.
-
-## Prueba funcional web
-
-Después de `npm run build:web`, sirve `dist` en el puerto 8081 y ejecuta `npm run test:web` (requiere Chromium en `/usr/bin/chromium`, o `CHROMIUM_PATH`). Se puede cambiar el destino con `QGASTO_URL`. La prueba crea datos únicamente en un contexto de navegador desechable y comprueba cuentas, tarjeta, transferencia, recarga, presupuestos, metas y el Excel descargado.
-
-La auditoría actual tiene 0 avisos altos/críticos y 12 moderados en herramientas de Expo. La distribución de SheetJS y las limitaciones están detalladas en [arquitectura](docs/architecture.md#dependencias-revisadas).
+Más detalles: [arquitectura](docs/architecture.md). La especificación adjunta original contiene tres páginas de resumen y referencia una especificación extensa y un Excel no adjuntados.
