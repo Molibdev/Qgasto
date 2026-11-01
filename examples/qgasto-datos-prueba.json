@@ -1,0 +1,371 @@
+{
+  "format": "qgasto-backup",
+  "version": 1,
+  "createdAt": "2026-11-01T22:45:50.452Z",
+  "data": {
+    "version": 1,
+    "recurring": [
+      {
+        "type": "expense",
+        "accountId": "demo-santander",
+        "categoryId": "home",
+        "amount": 24990,
+        "note": "Internet mensual · DEMO",
+        "id": "demo-internet",
+        "startDate": "2026-11-05",
+        "nextDate": "2026-11-05",
+        "active": true
+      },
+      {
+        "type": "expense",
+        "accountId": "demo-santander",
+        "categoryId": "health",
+        "amount": 15000,
+        "note": "Seguro mensual · DEMO",
+        "id": "demo-insurance",
+        "startDate": "2026-11-10",
+        "nextDate": "2026-11-10",
+        "active": true
+      },
+      {
+        "type": "expense",
+        "accountId": "demo-visa",
+        "categoryId": "leisure",
+        "amount": 9990,
+        "note": "Streaming pausado · DEMO",
+        "id": "demo-paused",
+        "startDate": "2026-10-01",
+        "nextDate": "2026-10-01",
+        "active": false
+      }
+    ],
+    "accounts": [
+      {
+        "id": "demo-santander",
+        "name": "Corriente principal · DEMO",
+        "type": "bank",
+        "bank": "Santander",
+        "bankType": "checking",
+        "maintenanceFee": 3500,
+        "openingBalance": 350000,
+        "active": true
+      },
+      {
+        "id": "demo-estado",
+        "name": "Cuenta de ahorro · DEMO",
+        "type": "bank",
+        "bank": "BancoEstado",
+        "bankType": "sight",
+        "maintenanceFee": 0,
+        "openingBalance": 750000,
+        "active": true
+      },
+      {
+        "id": "demo-cash",
+        "name": "Billetera · DEMO",
+        "type": "cash",
+        "openingBalance": 80000,
+        "active": true
+      },
+      {
+        "id": "demo-cmr",
+        "name": "CMR · DEMO",
+        "type": "credit",
+        "bank": "Banco Falabella",
+        "creditLimit": 1500000,
+        "billingDay": 20,
+        "openingBalance": -80000,
+        "active": true
+      },
+      {
+        "id": "demo-visa",
+        "name": "Visa · DEMO",
+        "type": "credit",
+        "bank": "Santander",
+        "creditLimit": 800000,
+        "billingDay": 5,
+        "openingBalance": 0,
+        "active": true
+      }
+    ],
+    "categories": [
+      {
+        "id": "salary",
+        "name": "Sueldo",
+        "type": "income"
+      },
+      {
+        "id": "other-income",
+        "name": "Otros ingresos",
+        "type": "income"
+      },
+      {
+        "id": "food",
+        "name": "Alimentación",
+        "type": "expense"
+      },
+      {
+        "id": "home",
+        "name": "Hogar",
+        "type": "expense"
+      },
+      {
+        "id": "transport",
+        "name": "Transporte",
+        "type": "expense"
+      },
+      {
+        "id": "health",
+        "name": "Salud",
+        "type": "expense"
+      },
+      {
+        "id": "leisure",
+        "name": "Ocio",
+        "type": "expense"
+      },
+      {
+        "id": "other",
+        "name": "Otros gastos",
+        "type": "expense"
+      }
+    ],
+    "transactions": [
+      {
+        "id": "demo-oct-extra",
+        "type": "income",
+        "accountId": "demo-santander",
+        "categoryId": "other-income",
+        "amount": 100000,
+        "date": "2026-10-20",
+        "note": "Trabajo freelance · DEMO"
+      },
+      {
+        "id": "demo-oct-food",
+        "type": "expense",
+        "accountId": "demo-cmr",
+        "categoryId": "food",
+        "amount": 60000,
+        "date": "2026-10-25",
+        "note": "Supermercado octubre · DEMO"
+      },
+      {
+        "id": "demo-oct-health",
+        "type": "expense",
+        "accountId": "demo-santander",
+        "categoryId": "health",
+        "amount": 25000,
+        "date": "2026-10-26",
+        "note": "Farmacia octubre · DEMO"
+      },
+      {
+        "id": "demo-oct-cafe",
+        "type": "expense",
+        "accountId": "demo-cash",
+        "categoryId": "food",
+        "amount": 5000,
+        "date": "2026-10-28",
+        "note": "Café octubre · DEMO"
+      },
+      {
+        "id": "demo-salary",
+        "type": "income",
+        "accountId": "demo-santander",
+        "categoryId": "salary",
+        "amount": 1800000,
+        "date": "2026-11-01",
+        "note": "Sueldo noviembre · DEMO"
+      },
+      {
+        "id": "demo-freelance",
+        "type": "income",
+        "accountId": "demo-santander",
+        "categoryId": "other-income",
+        "amount": 120000,
+        "date": "2026-11-01",
+        "note": "Ingreso adicional · DEMO"
+      },
+      {
+        "id": "demo-rent",
+        "type": "expense",
+        "accountId": "demo-santander",
+        "categoryId": "home",
+        "amount": 650000,
+        "date": "2026-11-01",
+        "note": "Arriendo · DEMO"
+      },
+      {
+        "id": "demo-health",
+        "type": "expense",
+        "accountId": "demo-santander",
+        "categoryId": "health",
+        "amount": 40000,
+        "date": "2026-11-01",
+        "note": "Consulta médica · DEMO"
+      },
+      {
+        "id": "demo-metro",
+        "type": "expense",
+        "accountId": "demo-santander",
+        "categoryId": "transport",
+        "amount": 10000,
+        "date": "2026-11-01",
+        "note": "Recarga transporte · DEMO"
+      },
+      {
+        "id": "demo-food-bank",
+        "type": "expense",
+        "accountId": "demo-santander",
+        "categoryId": "food",
+        "amount": 15000,
+        "date": "2026-11-01",
+        "note": "Almacén · DEMO"
+      },
+      {
+        "id": "demo-fee",
+        "type": "expense",
+        "accountId": "demo-santander",
+        "categoryId": "other",
+        "amount": 3500,
+        "date": "2026-11-01",
+        "note": "Mantención registrada manualmente · DEMO"
+      },
+      {
+        "id": "demo-savings-expense",
+        "type": "expense",
+        "accountId": "demo-estado",
+        "categoryId": "other",
+        "amount": 20000,
+        "date": "2026-11-01",
+        "note": "Compra desde cuenta vista · DEMO"
+      },
+      {
+        "id": "demo-supermarket",
+        "type": "expense",
+        "accountId": "demo-cmr",
+        "categoryId": "food",
+        "amount": 85000,
+        "date": "2026-11-01",
+        "note": "Supermercado con tarjeta · DEMO"
+      },
+      {
+        "id": "demo-cinema",
+        "type": "expense",
+        "accountId": "demo-cmr",
+        "categoryId": "leisure",
+        "amount": 25000,
+        "date": "2026-11-01",
+        "note": "Cine · DEMO"
+      },
+      {
+        "id": "demo-fuel",
+        "type": "expense",
+        "accountId": "demo-cmr",
+        "categoryId": "transport",
+        "amount": 15000,
+        "date": "2026-11-01",
+        "note": "Combustible · DEMO"
+      },
+      {
+        "id": "demo-subscription",
+        "type": "expense",
+        "accountId": "demo-visa",
+        "categoryId": "leisure",
+        "amount": 18000,
+        "date": "2026-11-01",
+        "note": "Suscripción digital · DEMO"
+      },
+      {
+        "id": "demo-lunch",
+        "type": "expense",
+        "accountId": "demo-cash",
+        "categoryId": "food",
+        "amount": 12000,
+        "date": "2026-11-01",
+        "note": "Almuerzo en efectivo · DEMO"
+      },
+      {
+        "id": "demo-taxi",
+        "type": "expense",
+        "accountId": "demo-cash",
+        "categoryId": "transport",
+        "amount": 3000,
+        "date": "2026-11-01",
+        "note": "Transporte en efectivo · DEMO"
+      }
+    ],
+    "transfers": [],
+    "budgets": [
+      {
+        "id": "demo-budget-food",
+        "categoryId": "food",
+        "month": "2026-11",
+        "amount": 130000
+      },
+      {
+        "id": "demo-budget-home",
+        "categoryId": "home",
+        "month": "2026-11",
+        "amount": 800000
+      },
+      {
+        "id": "demo-budget-transport",
+        "categoryId": "transport",
+        "month": "2026-11",
+        "amount": 80000
+      },
+      {
+        "id": "demo-budget-health",
+        "categoryId": "health",
+        "month": "2026-11",
+        "amount": 100000
+      },
+      {
+        "id": "demo-budget-leisure",
+        "categoryId": "leisure",
+        "month": "2026-11",
+        "amount": 40000
+      },
+      {
+        "id": "demo-budget-other",
+        "categoryId": "other",
+        "month": "2026-11",
+        "amount": 100000
+      }
+    ],
+    "goals": [
+      {
+        "id": "demo-emergency",
+        "name": "Fondo de emergencia · DEMO",
+        "target": 1500000,
+        "accountId": "demo-estado"
+      },
+      {
+        "id": "demo-vacation",
+        "name": "Vacaciones · DEMO",
+        "target": 600000,
+        "accountId": "demo-estado"
+      }
+    ],
+    "contributions": [
+      {
+        "id": "demo-contribution-1",
+        "goalId": "demo-emergency",
+        "amount": 200000,
+        "date": "2026-10-28"
+      },
+      {
+        "id": "demo-contribution-2",
+        "goalId": "demo-emergency",
+        "amount": 50000,
+        "date": "2026-11-01"
+      },
+      {
+        "id": "demo-contribution-3",
+        "goalId": "demo-vacation",
+        "amount": 100000,
+        "date": "2026-11-01"
+      }
+    ]
+  }
+}
