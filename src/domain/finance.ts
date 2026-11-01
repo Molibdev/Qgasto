@@ -91,6 +91,8 @@ export type Command =
   | { kind: "account"; value: Account }
   | { kind: "update-account"; value: Account }
   | { kind: "transaction"; value: Transaction }
+  | { kind: "update-transaction"; value: Transaction }
+  | { kind: "category"; value: State["categories"][number] }
   | { kind: "transfer"; value: State["transfers"][number] }
   | { kind: "budget"; value: State["budgets"][number] }
   | { kind: "goal"; value: State["goals"][number] }
@@ -165,6 +167,7 @@ export const contributed = (s: State, goalId: string) =>
 export function possibleDuplicate(s: State, t: Transaction) {
   return s.transactions.some(
     (x) =>
+      x.id !== t.id &&
       x.accountId === t.accountId &&
       x.amount === t.amount &&
       x.date === t.date &&
@@ -230,11 +233,46 @@ export function apply(s: State, c: Command): State {
       const a = accountSchema.parse(c.value);
       return append("accounts", a);
     }
+    case "category": {
+      const category = categorySchema.parse(c.value);
+      const old = s.categories.find((x) => x.id === category.id);
+      if (old && old.type !== category.type)
+        throw new Error(
+          "No se puede cambiar el tipo de una categoría existente",
+        );
+      if (
+        s.categories.some(
+          (x) =>
+            x.id !== category.id &&
+            x.type === category.type &&
+            x.name.normalize("NFKC").toLocaleLowerCase("es") ===
+              category.name.normalize("NFKC").toLocaleLowerCase("es"),
+        )
+      )
+        throw new Error("Ya existe una categoría con ese nombre");
+      return {
+        ...s,
+        categories: old
+          ? s.categories.map((x) => (x.id === category.id ? category : x))
+          : [...s.categories, category],
+      };
+    }
+    case "update-transaction":
     case "transaction": {
       const t = transactionSchema.parse(c.value);
       account(t.accountId);
       if (!s.categories.some((x) => x.id === t.categoryId && x.type === t.type))
         throw new Error("Categoría incompatible");
+      if (c.kind === "update-transaction") {
+        const old = s.transactions.find((x) => x.id === t.id);
+        if (!old) throw new Error("Movimiento no encontrado");
+        if (old.type !== t.type)
+          throw new Error("No se puede cambiar el tipo del movimiento");
+        return {
+          ...s,
+          transactions: s.transactions.map((x) => (x.id === t.id ? t : x)),
+        };
+      }
       return append("transactions", t);
     }
     case "transfer": {
@@ -345,4 +383,23 @@ export function accountTypeLabel(a: Account): string {
         : a.bankType === "sight"
           ? "Cuenta vista"
           : "Cuenta bancaria";
+}
+
+// Todos los gastos del mes, agrupados por el medio de pago de la cuenta.
+// Las transferencias históricas y los saldos iniciales no son gastos.
+export function expensesByAccountType(s: State, month: string) {
+  const totals: Record<string, number> = {
+    "Tarjeta de crédito": 0,
+    "Cuenta vista": 0,
+    "Cuenta corriente": 0,
+    Efectivo: 0,
+    "Cuenta bancaria": 0,
+  };
+  for (const t of s.transactions) {
+    if (t.type !== "expense" || !t.date.startsWith(`${month}-`)) continue;
+    const a = s.accounts.find((a) => a.id === t.accountId);
+    const label = a ? accountTypeLabel(a) : "Sin cuenta";
+    totals[label] = (totals[label] ?? 0) + t.amount;
+  }
+  return Object.entries(totals).map(([name, total]) => ({ name, total }));
 }

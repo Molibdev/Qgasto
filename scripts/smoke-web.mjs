@@ -10,6 +10,13 @@ const browser = await chromium.launch({
 const page = await browser.newPage({
   viewport: { width: 390, height: 844 },
   acceptDownloads: true,
+  reducedMotion: "reduce",
+  isMobile: true,
+  hasTouch: true,
+});
+// Exercise browsers where Blob.text is unavailable (older mobile WebViews).
+await page.addInitScript(() => {
+  Blob.prototype.text = undefined;
 });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -146,6 +153,11 @@ try {
   await page.reload();
   await button("Crear mi primera cuenta").waitFor();
   await page.getByRole("tab", { name: "Ajustes" }).click();
+  const canceledChooser = page.waitForEvent("filechooser");
+  await button("Cargar copia de seguridad").click();
+  await canceledChooser;
+  await page.locator('input[type="file"]').dispatchEvent("cancel");
+  assert.equal(await button("Cargar copia de seguridad").isEnabled(), true);
   const invalidChooser = page.waitForEvent("filechooser");
   await button("Cargar copia de seguridad").click();
   await (
@@ -162,9 +174,9 @@ try {
   await (
     await chooser
   ).setFiles({
-    name: "respaldo.json",
-    mimeType: "application/json",
-    buffer: readFileSync(backupPath),
+    name: "datos.json",
+    mimeType: "",
+    buffer: Buffer.concat([Buffer.from("\uFEFF"), readFileSync(backupPath)]),
   });
   await button("Confirmar restauración").click();
   await button("Confirmar restauración").waitFor({ state: "hidden" });
@@ -201,6 +213,103 @@ try {
     .waitFor();
   await button("Mes consultado").click();
   await button("Hoy").click();
+  // Category settings and editing both kinds of transactions.
+  await page.getByRole("tab", { name: "Ajustes" }).click();
+  await field("Nombre de categoría").fill("Educación");
+  await button("Agregar categoría").click();
+  await page.getByText("Categoría guardada", { exact: true }).waitFor();
+  await button("Renombrar categoría Educación").click();
+  await field("Nombre de categoría").fill("Estudios");
+  await button("Guardar categoría").click();
+  await button("Renombrar categoría Estudios").waitFor();
+  await page.reload();
+  await page.getByRole("tab", { name: "Actividad" }).click();
+  await button("Editar gasto: Compra mensual").click();
+  assert.equal(
+    await field("Monto CLP (sin separadores)").inputValue(),
+    "100000",
+  );
+  assert.equal(await field("Nota (opcional)").inputValue(), "Compra mensual");
+  await button("Estudios").click();
+  await field("Monto CLP (sin separadores)").fill("75000");
+  await field("Nota (opcional)").fill("Compra corregida");
+  await save();
+  await button("Editar gasto: Compra corregida").waitFor();
+  assert.equal(await button("Editar gasto: Compra mensual").count(), 0);
+  await button("Editar gasto: Compra corregida").click();
+  assert.equal(
+    await field("Monto CLP (sin separadores)").inputValue(),
+    "75000",
+  );
+  assert.equal(await button("Estudios").getAttribute("aria-selected"), "true");
+  await button("Cancelar").click();
+  await button("+ Ingreso").click();
+  await button("Cuenta principal").click();
+  await field("Monto CLP (sin separadores)").fill("25000");
+  await field("Nota (opcional)").fill("Ingreso de prueba");
+  await save();
+  await button("Editar ingreso: Ingreso de prueba").click();
+  await field("Monto CLP (sin separadores)").fill("30000");
+  await save();
+  await page.reload();
+  await page.getByRole("tab", { name: "Inicio" }).click();
+  const breakdown = page
+    .getByText("Gastos por medio de pago", { exact: true })
+    .locator("..");
+  await breakdown.getByText("$75.000", { exact: true }).waitFor();
+  await breakdown.getByText("Cuenta vista", { exact: true }).waitFor();
+  await page.getByRole("tab", { name: "Actividad" }).click();
+  await button("Editar ingreso: Ingreso de prueba").click();
+  assert.equal(
+    await field("Monto CLP (sin separadores)").inputValue(),
+    "30000",
+  );
+  await button("Cancelar").click();
+  // Calendar stays inside a narrow viewport, with selected day and touch targets.
+  await button("− Gasto").click();
+  await button("Fecha").click();
+  await page.screenshot({ path: "/tmp/qgasto-calendar-mobile.png" });
+  const selectedDay = page.locator('[role="button"][aria-selected="true"]');
+  assert.ok((await selectedDay.boundingBox()).height >= 44);
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  await button("Cerrar calendario").click();
+  await button("Cancelar").click();
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.getByRole("tab", { name: "Inicio" }).click();
+  assert.equal(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > innerWidth,
+    ),
+    false,
+  );
+  // Readable button foreground/background in both themes (WCAG normal text).
+  for (const dark of [true, false]) {
+    await page.getByRole("tab", { name: "Ajustes" }).click();
+    const switchLabel = dark
+      ? "Cambiar a modo claro"
+      : "Cambiar a modo nocturno";
+    if ((await button(switchLabel).count()) === 0)
+      await button(
+        dark ? "Cambiar a modo nocturno" : "Cambiar a modo claro",
+      ).click();
+    const colors = await button(switchLabel).evaluate((el) => ({
+      color: getComputedStyle(el.firstElementChild).color,
+      bg: getComputedStyle(el).backgroundColor,
+    }));
+    const values = [luminance(colors.color), luminance(colors.bg)].sort(
+      (a, b) => a - b,
+    );
+    assert.ok(
+      (values[1] + 0.05) / (values[0] + 0.05) >= 4.5,
+      "Contraste de botones en ambos temas",
+    );
+  }
+  await page.getByRole("tab", { name: "Inicio" }).click();
   await page.screenshot({
     path: "/tmp/qgasto-mobile.png",
     fullPage: true,
@@ -221,7 +330,7 @@ try {
   });
   assert.deepEqual(errors, []);
   console.log(
-    "PASS: cuentas, gasto con tarjeta, sin transferencias, persistencia, modo oscuro, backup JSON restaurado, recurrente pausado, presupuesto, meta, aporte, descarga XLSX y diseño móvil/escritorio; sin errores de JavaScript.",
+    "PASS: cuentas, gasto con tarjeta, sin transferencias, persistencia, modo oscuro, backup JSON restaurado, recurrente pausado, presupuesto, meta, aporte, descarga XLSX y diseño móvil/escritorio, edición de gastos e ingresos, categorías personalizadas, importación móvil sin MIME/Blob.text y contraste; sin errores de JavaScript.",
   );
 } catch (error) {
   await page.screenshot({ path: "/tmp/qgasto-error.png" });

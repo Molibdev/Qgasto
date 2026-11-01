@@ -27,18 +27,60 @@ export async function downloadBackup(s: State) {
     UTI: "public.json",
   });
 }
-export async function pickBackup(): Promise<State | null> {
-  const result = await DocumentPicker.getDocumentAsync({
-    type: ["application/json", "text/plain", "application/octet-stream"],
-    copyToCacheDirectory: true,
+// Keep the browser's file dialog directly in the user gesture. Some mobile
+// browsers do not open dialogs triggered by synthetic dispatched MouseEvents.
+function pickWebFile(): Promise<globalThis.File | null> {
+  return new Promise((resolve, reject) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    // No MIME filter: mobile providers may return JSON with an empty/wrong type.
+    input.style.display = "none";
+    const finish = (file: globalThis.File | null) => {
+      input.remove();
+      resolve(file);
+    };
+    input.addEventListener("change", () => finish(input.files?.[0] ?? null), {
+      once: true,
+    });
+    input.addEventListener("cancel", () => finish(null), { once: true });
+    document.body.appendChild(input);
+    try {
+      input.click();
+    } catch (error) {
+      input.remove();
+      reject(error);
+    }
   });
-  if (result.canceled) return null;
-  const asset = result.assets[0];
-  if (asset.size && asset.size > MAX_BACKUP_BYTES)
-    throw new Error("La copia supera 10 MB");
-  const text =
-    Platform.OS === "web" && asset.file
-      ? await asset.file.text()
-      : await new File(asset.uri).text();
+}
+export async function pickBackup(): Promise<State | null> {
+  let text: string;
+  if (Platform.OS === "web") {
+    const file = await pickWebFile();
+    if (!file) return null;
+    if (file.size > MAX_BACKUP_BYTES) throw new Error("La copia supera 10 MB");
+    text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ""));
+      reader.onerror = () =>
+        reject(new Error("No se pudo leer el archivo seleccionado"));
+      reader.onabort = () => reject(new Error("Lectura cancelada"));
+      reader.readAsText(file);
+    });
+  } else {
+    const result = await DocumentPicker.getDocumentAsync({
+      // Native providers can label JSON as text or omit its MIME type.
+      // The backup schema below is the authority, not the provider's MIME label.
+      type: "*/*",
+      multiple: false,
+      copyToCacheDirectory: true,
+    });
+    if (result.canceled) return null;
+    const asset = result.assets[0];
+    if (!asset)
+      throw new Error("No se recibió el archivo. Vuelve a seleccionarlo.");
+    if (asset.size && asset.size > MAX_BACKUP_BYTES)
+      throw new Error("La copia supera 10 MB");
+    text = await new File(asset.uri).text();
+  }
   return readBackup(text);
 }

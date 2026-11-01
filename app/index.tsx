@@ -29,6 +29,7 @@ import {
   clp,
   contributed,
   monthly,
+  expensesByAccountType,
   possibleDuplicate,
   spent,
   today,
@@ -150,6 +151,7 @@ function Choices({
           <Pressable
             accessibilityRole="button"
             accessibilityState={{ selected: value === o.id }}
+            aria-selected={value === o.id}
             key={o.id}
             onPress={() => onChange(o.id)}
             style={[styles.chip, value === o.id && styles.chipSelected]}
@@ -213,6 +215,8 @@ export default function Home() {
   const [account, setAccount] = useState("");
   const [category, setCategory] = useState("");
   const [type, setType] = useState<Account["type"]>("bank");
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
   const [editing, setEditing] = useState<Account | null>(null);
   const [bank, setBank] = useState("");
   const [bankType, setBankType] = useState<"checking" | "sight">("checking");
@@ -240,6 +244,7 @@ export default function Home() {
     );
     setType("bank");
     setEditing(null);
+    setEditingTransaction(null);
     setBank("");
     setBankType("checking");
     setFee("0");
@@ -285,6 +290,15 @@ export default function Home() {
     setFee(String(a.maintenanceFee ?? 0));
     setLimit(a.creditLimit === undefined ? "" : String(a.creditLimit));
     setBilling(String(a.billingDay ?? 15));
+  };
+  const editTransaction = (t: Transaction) => {
+    open(t.type);
+    setEditingTransaction(t);
+    setAmount(String(t.amount));
+    setDate(t.date);
+    setAccount(t.accountId);
+    setCategory(t.categoryId);
+    setNote(t.note);
   };
   const commit = async (command: Command) => {
     await save(command);
@@ -349,7 +363,7 @@ export default function Home() {
         case "income":
         case "expense": {
           const t: Transaction = {
-            id,
+            id: editingTransaction?.id ?? id,
             type: form,
             accountId: account,
             categoryId: category,
@@ -361,7 +375,10 @@ export default function Home() {
             setDuplicate(t);
             return;
           }
-          await commit({ kind: "transaction", value: t });
+          await commit({
+            kind: editingTransaction ? "update-transaction" : "transaction",
+            value: t,
+          });
           break;
         }
         case "recurring":
@@ -457,7 +474,8 @@ export default function Home() {
                 </Text>
                 <Text
                   style={{
-                    color: ratio >= 1 ? "#db6856" : styles.cardTitle.color,
+                    color:
+                      ratio >= 1 ? styles.error.color : styles.cardTitle.color,
                   }}
                 >
                   {Math.round(ratio * 100)}%
@@ -551,6 +569,24 @@ export default function Home() {
                       </Text>
                     </View>
                   </View>
+                </View>
+                <View style={styles.card}>
+                  <Text style={styles.section}>Gastos por medio de pago</Text>
+                  <Text style={styles.muted}>
+                    Total gastado en {monthLabel(month)} · sin transferencias
+                  </Text>
+                  {expensesByAccountType(s, month).map((group) => (
+                    <View
+                      key={group.name}
+                      style={[
+                        styles.row,
+                        { flexWrap: "wrap", alignItems: "center" },
+                      ]}
+                    >
+                      <Text style={styles.body}>{group.name}</Text>
+                      <Text style={styles.cardTitle}>{clp(group.total)}</Text>
+                    </View>
+                  ))}
                 </View>
                 {s.accounts.some((a) => a.type === "credit") && (
                   <View style={styles.card}>
@@ -733,6 +769,28 @@ export default function Home() {
                             : ""}
                         {clp(t.amount)}
                       </Text>
+                      {t.kind !== "transfer" && (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel={`Editar ${t.kind === "income" ? "ingreso" : "gasto"}: ${t.title}`}
+                          onPress={() =>
+                            editTransaction(
+                              s.transactions.find((x) => x.id === t.id)!,
+                            )
+                          }
+                          style={[
+                            styles.chip,
+                            {
+                              width: 44,
+                              height: 44,
+                              padding: 0,
+                              alignItems: "center",
+                            },
+                          ]}
+                        >
+                          <Text style={styles.cardTitle}>✎</Text>
+                        </Pressable>
+                      )}
                     </View>
                   ),
                 )}
@@ -920,6 +978,7 @@ export default function Home() {
               <Settings
                 key={session?.user.id ?? "guest"}
                 state={s}
+                save={save}
                 restore={restore}
                 sync={sync}
                 pull={pull}
@@ -937,6 +996,7 @@ export default function Home() {
               key={t}
               accessibilityRole="tab"
               accessibilityState={{ selected: t === tab }}
+              aria-selected={t === tab}
               onPress={() => setTab(t)}
               style={styles.navItem}
             >
@@ -985,7 +1045,15 @@ export default function Home() {
                 contentContainerStyle={{ padding: 24, gap: 18 }}
                 keyboardShouldPersistTaps="handled"
               >
-                <Text style={styles.section}>{form ? titles[form] : ""}</Text>
+                <Text style={styles.section}>
+                  {editingTransaction
+                    ? form === "income"
+                      ? "Editar ingreso"
+                      : "Editar gasto"
+                    : form
+                      ? titles[form]
+                      : ""}
+                </Text>
                 {(form === "account" || form === "goal") && (
                   <Field
                     label={
@@ -1177,7 +1245,12 @@ export default function Home() {
                       disabled={busy || saving}
                       onPress={() => {
                         setBusy(true);
-                        void commit({ kind: "transaction", value: duplicate })
+                        void commit({
+                          kind: editingTransaction
+                            ? "update-transaction"
+                            : "transaction",
+                          value: duplicate,
+                        })
                           .catch((e) => setMessage(e.message))
                           .finally(() => setBusy(false));
                       }}

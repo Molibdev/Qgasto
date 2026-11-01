@@ -22,7 +22,10 @@ Stack: Expo 58, React Native 0.88, React 19.3, Expo Router, TypeScript, TanStack
 - Ingresos y gastos con validación, advertencia de duplicados y selectores de calendario para fechas y meses.
 - Presupuestos por categoría, metas y aportes con control de saldo disponible.
 - Gastos recurrentes mensuales: recuperación de vencimientos al abrir la app, ejecución cada minuto mientras está abierta, pausa/reanudación e IDs idempotentes. Los días 29–31 se ajustan a meses cortos sin perder el día original. Reanudar recupera los vencimientos pendientes.
-- Ajustes: modo claro/nocturno persistido, cuenta, sincronización y respaldos.
+- Resumen mensual de gastos por medio de pago: tarjetas de crédito, cuentas vista, cuentas corrientes, efectivo y cuentas bancarias sin subtipo. No cuenta transferencias ni saldos iniciales.
+- Actividad: edición de ingresos y gastos con el icono de lápiz y formulario precargado; conserva el ID y recalcula saldos, presupuestos y totales.
+- Ajustes: modo claro/nocturno persistido, cuenta, sincronización, respaldos y categorías de gasto personalizadas. Se pueden agregar y renombrar sin perder referencias del historial.
+- Calendario móvil desplazable, adaptado al alto disponible, con selección y día actual destacados. Colores y contornos con mayor contraste en ambos temas.
 - **Copia JSON descargable y restaurable** con todos los datos financieros, incluidos recurrentes. Formato versionado, validación y confirmación antes de reemplazar el perfil actual. Sin contraseñas ni sesiones. Límite de importación de 10 MB. Guarda el archivo fuera de la app para recuperarlo después de reinstalar.
 - Excel para análisis; no se usa como formato de restauración.
 - Registro/inicio/cierre de sesión Supabase y sincronización de instantáneas con RLS y control de conflictos (requiere configurar proyecto).
@@ -44,6 +47,6 @@ npm run build:web
 npm run test:web
 ```
 
-Las pruebas cubren reglas financieras, recurrentes, respaldo/restauración JSON y flujo de navegador con modo oscuro. La integración remota y las pruebas en teléfonos necesitan los servicios y dispositivos correspondientes.
+Las pruebas cubren reglas financieras, edición de movimientos, categorías, desglose por medio de pago, recurrentes, respaldo/restauración JSON y flujo de navegador con modo oscuro. El smoke usa emulación táctil, comprueba anchos de 320/390 px, contraste de botones en ambos temas e importación de `datos.json` sin MIME, con BOM y sin `Blob.text`. La importación web usa apertura directa del selector y `FileReader`; la nativa permite proveedores con tipos MIME incorrectos. La validación de esquema, límite de 10 MB y confirmación de restauración se mantienen. La integración remota y las pruebas en teléfonos necesitan los servicios y dispositivos correspondientes.
 
 Más detalles: [arquitectura](docs/architecture.md). La especificación adjunta original contiene tres páginas de resumen y referencia una especificación extensa y un Excel no adjuntados.

@@ -135,3 +135,160 @@ test("backup conserva metadatos y acepta cuentas antiguas sin inventar cupos", (
   assert.equal(monthLabel("2026-01"), "enero");
   assert.equal(monthLabel("2026-13"), "mes seleccionado");
 });
+
+test("editar gasto recalcula cuenta, mes, categoría y respaldo sin duplicar", async () => {
+  const { balance, monthly, expensesByAccountType, possibleDuplicate, spent } =
+    await import("../src/domain/finance");
+  const original = {
+    id: "edit",
+    type: "expense" as const,
+    accountId: "card",
+    categoryId: "food",
+    amount: 10000,
+    date: "2026-11-01",
+    note: "Compra",
+  };
+  const before = apply(state, { kind: "transaction", value: original });
+  assert.equal(possibleDuplicate(before, original), false);
+  const changed = {
+    ...original,
+    accountId: "bank",
+    categoryId: "home",
+    amount: 20000,
+    date: "2026-12-01",
+    note: "Corregido",
+  };
+  const after = apply(before, { kind: "update-transaction", value: changed });
+  assert.equal(after.transactions.length, 1);
+  assert.equal(balance(after, "card"), -100000);
+  assert.equal(balance(after, "bank"), 480000);
+  assert.equal(monthly(after, "2026-11").expense, 0);
+  assert.equal(monthly(after, "2026-12").expense, 20000);
+  assert.equal(spent(after, "home", "2026-12"), 20000);
+  assert.equal(
+    expensesByAccountType(after, "2026-12").find(
+      (g) => g.name === "Cuenta corriente",
+    )?.total,
+    20000,
+  );
+  assert.deepEqual(readBackup(makeBackup(after)), after);
+  for (const value of [
+    { ...changed, amount: 0 },
+    { ...changed, id: "missing" },
+    { ...changed, accountId: "missing" },
+    { ...changed, categoryId: "salary" },
+    { ...changed, date: "2026-02-30" },
+    { ...changed, type: "income" as const },
+  ])
+    assert.throws(() => apply(after, { kind: "update-transaction", value }));
+  const income = apply(state, {
+    kind: "transaction",
+    value: {
+      ...original,
+      type: "income",
+      categoryId: "salary",
+      accountId: "bank",
+    },
+  });
+  assert.equal(
+    balance(
+      apply(income, {
+        kind: "update-transaction",
+        value: { ...income.transactions[0], amount: 50000 },
+      }),
+      "bank",
+    ),
+    550000,
+  );
+});
+test("desglose mensual distingue todos los medios sin contar ingresos ni transferencias", async () => {
+  const { expensesByAccountType, monthly } = await import(
+    "../src/domain/finance"
+  );
+  let s: State = {
+    ...state,
+    accounts: [
+      ...accounts,
+      { ...accounts[0], id: "sight", bankType: "sight" },
+      { ...accounts[0], id: "legacy", bankType: undefined, active: false },
+    ],
+  };
+  s = {
+    ...s,
+    transactions: s.accounts.map((a, i) => ({
+      id: a.id,
+      accountId: a.id,
+      type: "expense",
+      categoryId: "food",
+      amount: (i + 1) * 1000,
+      date: "2026-11-01",
+      note: "",
+    })),
+  };
+  s = apply(s, {
+    kind: "transfer",
+    value: {
+      id: "transfer",
+      fromId: "bank",
+      toId: "card",
+      amount: 999,
+      date: "2026-11-01",
+    },
+  });
+  s = apply(s, {
+    kind: "transaction",
+    value: {
+      ...s.transactions[0],
+      id: "income",
+      type: "income",
+      categoryId: "salary",
+      amount: 999,
+    },
+  });
+  s = apply(s, {
+    kind: "transaction",
+    value: { ...s.transactions[0], id: "other-month", date: "2026-10-01" },
+  });
+  assert.deepEqual(
+    expensesByAccountType(s, "2026-11").map((g) => g.total),
+    [3000, 4000, 1000, 2000, 5000],
+  );
+  assert.equal(
+    expensesByAccountType(s, "2026-11").reduce((n, g) => n + g.total, 0),
+    monthly(s, "2026-11").expense,
+  );
+});
+test("categorías personalizadas conservan referencias y rechazan nombres duplicados", () => {
+  const category = {
+    id: "education",
+    name: "Educación",
+    type: "expense" as const,
+  };
+  let s = apply(state, { kind: "category", value: category });
+  s = apply(s, {
+    kind: "transaction",
+    value: {
+      id: "school",
+      type: "expense",
+      accountId: "bank",
+      categoryId: category.id,
+      amount: 1000,
+      date: "2026-11-01",
+      note: "",
+    },
+  });
+  s = apply(s, { kind: "category", value: { ...category, name: "Estudios" } });
+  assert.equal(s.transactions[0].categoryId, category.id);
+  assert.equal(
+    s.categories.find((c) => c.id === category.id)?.name,
+    "Estudios",
+  );
+  assert.deepEqual(readBackup(makeBackup(s)), s);
+  assert.deepEqual(readBackup("\uFEFF" + makeBackup(s)), s);
+  for (const value of [
+    { ...category, id: "dup", name: " estudios " },
+    { ...category, name: " " },
+    { ...category, type: "income" as const },
+  ])
+    assert.throws(() => apply(s, { kind: "category", value }));
+});

@@ -1,5 +1,14 @@
 import React, { useState, createContext, useContext } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  Text,
+  TextInput,
+  View,
+  ScrollView,
+  useWindowDimensions,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useTheme } from "./theme";
 import { dateSchema, today } from "../domain/finance";
 type Request = {
@@ -67,6 +76,8 @@ export function DateField(props: Request) {
   );
 }
 export function CalendarContent() {
+  const { width, height } = useWindowDimensions();
+  const compact = width < 600;
   const { styles } = useTheme();
   const { request, close } = useCalendar();
   const {
@@ -132,19 +143,43 @@ export function CalendarContent() {
     </Pressable>
   );
   return (
-    <View style={[styles.overlay, { justifyContent: "center", padding: 18 }]}>
-      <View
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={[
+        styles.overlay,
+        {
+          justifyContent: compact ? "flex-end" : "center",
+          padding: compact ? 8 : 24,
+        },
+      ]}
+    >
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ padding: compact ? 16 : 24, gap: 14 }}
         accessibilityViewIsModal
         style={[
           styles.card,
           {
-            maxWidth: 420,
+            maxWidth: 440,
             width: "100%",
             alignSelf: "center",
-            maxHeight: "95%",
+            flexGrow: 0,
+            padding: 0,
+            maxHeight: height * 0.9,
+            borderRadius: 28,
           },
         ]}
       >
+        <View
+          style={{
+            width: 40,
+            height: 4,
+            borderRadius: 4,
+            backgroundColor: styles.input.borderColor,
+            alignSelf: "center",
+          }}
+        />
+        <Text style={styles.eyebrow}>{label}</Text>
         <Text style={styles.section}>
           {dayOnly
             ? "Día de facturación"
@@ -152,8 +187,9 @@ export function CalendarContent() {
               ? "Seleccionar mes"
               : "Seleccionar fecha"}
         </Text>
+        <Text style={styles.body}>{formatted}</Text>
         {!dayOnly && (
-          <View style={styles.row}>
+          <View style={[styles.row, { alignItems: "center" }]}>
             {button("Mes anterior", () => move(-1))}
             <Text style={styles.cardTitle}>{monthNames[m - 1]}</Text>
             {button("Mes siguiente", () => move(1))}
@@ -187,10 +223,30 @@ export function CalendarContent() {
                 accessibilityLabel={`${name} ${y}`}
                 key={name}
                 disabled={!validYear}
-                style={[styles.chip, { width: "30%" }]}
+                accessibilityState={{
+                  selected: `${y}-${String(i + 1).padStart(2, "0")}` === value,
+                }}
+                aria-selected={
+                  `${y}-${String(i + 1).padStart(2, "0")}` === value
+                }
+                style={[
+                  styles.chip,
+                  { width: "30%", alignItems: "center", minHeight: 48 },
+                  `${y}-${String(i + 1).padStart(2, "0")}` === value &&
+                    styles.chipSelected,
+                ]}
                 onPress={() => select(`${y}-${String(i + 1).padStart(2, "0")}`)}
               >
-                <Text style={styles.cardTitle}>{name.slice(0, 3)}</Text>
+                <Text
+                  style={[
+                    styles.cardTitle,
+                    `${y}-${String(i + 1).padStart(2, "0")}` === value && {
+                      color: "#fff",
+                    },
+                  ]}
+                >
+                  {name.slice(0, 3)}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -224,6 +280,9 @@ export function CalendarContent() {
                     accessibilityState={{
                       selected: dayOnly ? String(day) === value : iso === value,
                     }}
+                    aria-selected={
+                      dayOnly ? String(day) === value : iso === value
+                    }
                     key={i}
                     disabled={!dayOnly && !validYear}
                     onPress={() => select(dayOnly ? String(day) : iso)}
@@ -232,7 +291,9 @@ export function CalendarContent() {
                       minHeight: 44,
                       alignItems: "center",
                       justifyContent: "center",
-                      borderRadius: 12,
+                      borderRadius: 16,
+                      borderWidth: iso === today() && !dayOnly ? 2 : 0,
+                      borderColor: styles.link.color,
                       backgroundColor: (
                         dayOnly ? String(day) === value : iso === value
                       )
@@ -263,7 +324,7 @@ export function CalendarContent() {
             )}
           {button("Cerrar calendario", () => close())}
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

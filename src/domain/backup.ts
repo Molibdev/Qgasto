@@ -50,7 +50,7 @@ export function validateState(input: unknown): State {
   return s;
 }
 export function makeBackup(s: State): string {
-  const text=JSON.stringify(
+  const text = JSON.stringify(
     {
       format: "qgasto-backup",
       version: 1,
@@ -60,14 +60,17 @@ export function makeBackup(s: State): string {
     null,
     2,
   );
-  if(new TextEncoder().encode(text).length>MAX_BACKUP_BYTES)throw new Error('La copia supera el límite de 10 MB');
+  if (new TextEncoder().encode(text).length > MAX_BACKUP_BYTES)
+    throw new Error("La copia supera el límite de 10 MB");
   return text;
 }
 export function readBackup(text: string): State {
   if (new TextEncoder().encode(text).length > MAX_BACKUP_BYTES)
     throw new Error("La copia supera el límite de 10 MB");
   try {
-    return validateState(envelope.parse(JSON.parse(text)).data);
+    return validateState(
+      envelope.parse(JSON.parse(text.replace(/^\uFEFF/, ""))).data,
+    );
   } catch (e) {
     throw new Error(
       `Copia inválida o incompatible. No se modificaron tus datos. ${e instanceof Error && e.name !== "ZodError" ? e.message : ""}`,
