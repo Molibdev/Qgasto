@@ -1,42 +1,49 @@
-# Arquitectura y decisiones del MVP
+# Arquitectura de Qgasto
 
-## Referencia y alcance
+## Cliente y dominio
 
-El PDF entregado es un resumen de tres páginas. La especificación extensa y el Excel de origen no están disponibles. La aplicación usa sus tecnologías y reglas explícitas; el detalle de formularios y esquema inicial son decisiones de implementación sujetas a refinamiento.
+Expo 58, React Native 0.88, React 19.3, TypeScript y Expo Router. `app/index.tsx` contiene navegación y formularios; `src/components/Settings.tsx` gestiona copias, sesión y Drive. `theme.tsx` centraliza paletas de día/noche y preferencia persistida. El panel incorpora patrimonio, balance del mes y distribución de gastos por categoría.
 
-## Capas
+`src/domain/finance.ts` aplica operaciones puras validadas con Zod. Los importes son enteros en CLP. El saldo incluye saldo inicial, ingresos, gastos y transferencias históricas. Estas últimas ya no se pueden crear desde la UI; conservarlas evita alterar el patrimonio registrado en versiones anteriores. No se administran cupos ni ciclos de facturación de tarjetas. Los saldos pueden ser negativos.
 
-- `app/`: Expo Router, navegación y formularios en español. Diseño adaptable a teléfono y navegador.
-- `src/domain/finance.ts`: operaciones puras, validación con Zod e importes enteros CLP.
-- `src/data/store.ts`: TanStack Query + AsyncStorage, escrituras serializadas y persistencia antes de actualizar la interfaz. Un fallo de lectura no borra datos.
-- `src/domain/workbook.ts`: creación de las nueve hojas con SheetJS; celdas de texto no se convierten en fórmulas.
-- `src/data/export.ts`: descarga web o FileSystem/Sharing en móvil.
-- `supabase/migrations/`: esquema preparatorio. No aplicado a un proyecto remoto ni conectado al estado local.
+Presupuestos por mes calendario y categoría, con avisos al 80% y 100%. Los aportes a metas reservan saldo existente sin generar gastos; no superan el objetivo ni el saldo libre al registrar el aporte. Los gastos posteriores pueden reducir su respaldo: no se bloquea el uso de la cuenta.
 
-## Reglas
+## Persistencia y restauración
 
-El saldo es el inicial más ingresos menos gastos más transferencias entrantes menos salientes. Los movimientos futuros también afectan al saldo actual; el filtro mensual afecta al resumen y a la actividad. Las transferencias conservan el patrimonio y no aparecen como ingreso/gasto. Las compras con tarjeta disminuyen su saldo (deuda negativa) y los pagos aumentan ese saldo sin duplicar el gasto.
+TanStack Query mantiene la vista de datos y AsyncStorage conserva la copia del dispositivo. Las escrituras se serializan por perfil y se persisten antes de actualizar la UI. El invitado conserva la clave de almacenamiento original. Cada usuario de Supabase usa otra clave y caché independiente. Cerrar sesión no elimina su copia local.
 
-Se permiten saldos negativos para representar deuda o sobregiro. No se administra cupo ni facturación de tarjetas todavía. Los presupuestos son por mes calendario y categoría; guardarlos otra vez reemplaza su límite. El 80% y el 100% generan avisos dentro de la app.
+`src/domain/backup.ts` define el formato JSON `qgasto-backup`, versión 1, fecha UTC y estado financiero completo. Zod y las comprobaciones de referencias e IDs rechazan archivos incompatibles. No se incluyen sesiones ni contraseñas. Importar muestra un resumen y exige confirmación antes de reemplazar; no mezcla colecciones. Máximo 10 MB. El archivo externo permite recuperar datos cuando se pierde el almacenamiento local; no depende del caché de la app. No está cifrado: almacenarlo en un lugar privado.
 
-Los aportes a metas reservan fondos existentes; no son movimientos. No pueden superar el objetivo ni el saldo libre de otras asignaciones en la misma cuenta. Los gastos posteriores pueden reducir el respaldo real de una meta: no se bloquea el uso del dinero ni se promete una cuenta segregada.
+Excel es un informe separado, con nueve hojas (incluidos recurrentes e históricos). Los textos se exportan como celdas literales, sin convertir notas en fórmulas. No se usa XLSX como formato de restauración.
 
-IDs UUID permiten reintentar una escritura sin duplicarla. Una coincidencia por cuenta, tipo, monto, categoría y fecha solicita confirmación. La persistencia está pensada para un solo dispositivo y una sola instancia abierta; no existe coordinación entre pestañas ni sincronización. No editar/importar/eliminar movimientos en esta entrega.
+## Recurrentes
 
-## Seguridad y servicios externos
+Reglas mensuales de gastos, con inicio, próxima fecha, cuenta, categoría, importe y pausa/reanudación. Se procesan al cargar, cada minuto con la app abierta y al regresar al primer plano. El ID por regla/fecha evita duplicados. El día original se conserva al atravesar meses cortos. Reanudar recupera los vencimientos pendientes. No se promete ejecución con el proceso cerrado; los vencimientos se recuperan al abrir. No se implementan todavía notificaciones ni recurrentes semanales/anuales.
 
-El almacenamiento local no está cifrado por la aplicación: este MVP es para desarrollo y evaluación, sin garantía de custodia de datos sensibles. No guardar credenciales de Drive en AsyncStorage. No incluir `service_role` en Expo. La exportación contiene datos personales.
+## Autenticación y sincronización
 
-La migración prepara claves compuestas `(id, user_id)` para impedir referencias a datos ajenos, RLS por propietario y vistas con `security_invoker`. La autenticación, las funciones transaccionales para sincronización, las políticas de Storage y la auditoría requieren una etapa posterior. Probar aislamiento con dos usuarios y Supabase local antes de exponer un backend.
+Supabase Auth por correo/contraseña y Google OAuth PKCE. Sesiones nativas almacenadas en SecureStore en fragmentos; en web se usa AsyncStorage. Nunca se incluyen claves privadas de servidor. El almacenamiento financiero local no está cifrado por la app.
 
-Drive requiere un proyecto Google, OAuth offline `drive.file`, almacenamiento seguro del refresh token en servidor y jobs idempotentes. Los respaldos automáticos deberán correr en Edge Functions/Cron, sin depender del background del teléfono. No están implementados ni se solicitan credenciales todavía.
+El cliente sincroniza instantáneas completas en `finance_snapshots`, con RLS por propietario y revisión optimista. La migración relacional original se conserva como base futura, pero el cliente no escribe simultáneamente ambas representaciones. La carga de nube valida el mismo esquema financiero. Los cambios se sincronizan después de guardar y al iniciar sesión/volver al primer plano. Tras un error de red puede reintentarse con Sincronizar ahora.
 
-## Validación
+`src/domain/sync.ts` decide entre cargar nube, subir datos pendientes o avisar de conflicto. Un conflicto conserva lo local y requiere decisión explícita: descargar JSON antes de Cargar nube. No hay mezcla automática ni coordinación entre pestañas abiertas simultáneamente. No se transfieren datos del invitado al iniciar sesión: se trasladan mediante copia JSON.
 
-`npm test` cubre pagos de tarjeta sin doble gasto, transferencias, validación, duplicados, meses, reservas de metas y el contenido del XLSX. `npm run typecheck` verifica el cliente; `npm run build:web` empaqueta la aplicación. La validación en dispositivo, SQL con Supabase y OAuth requieren sus runtimes y no se consideran verificados por estos comandos.
+## Drive y configuración pendiente
 
-## Dependencias revisadas
+Se usa el token de proveedor de Google de la sesión para llamadas REST a Drive con alcance `drive.file`. Permite guardar copias JSON, listar las últimas 20 creadas por Qgasto y restaurarlas con confirmación. Conectar Google inicia sesión con esa cuenta y puede cambiar de perfil. Si el token Google caduca, hay que reconectar (Supabase renueva su sesión, no ese token).
 
-El paquete `xlsx` histórico de npm (0.18.5) tiene avisos de severidad alta. Se usa el alias exacto `xlsx: npm:@e965/xlsx@0.20.3`, una redistribución comunitaria de SheetJS CE 0.20.3 en npm (repositorio `e965/sheetjs-npm-publisher`), con integridad fijada por `package-lock.json`. No es un paquete publicado por el equipo oficial de SheetJS. El CDN oficial `cdn.sheetjs.com` está bloqueado por la política actual; no se ha modificado la política ni se ha desactivado TLS. Se puede migrar al tarball oficial una vez habilitado ese dominio y revisada su integridad.
+Los respaldos en Drive son manuales. Automatizar con la aplicación cerrada requiere un flujo OAuth offline separado, refresh tokens cifrados en servidor, revocación, Edge Functions y Cron con jobs idempotentes; esa automatización no forma parte del código actual.
 
-Tras el cambio, `npm audit` informa 0 avisos altos/críticos y 12 moderados, transitivos en herramientas Expo (`glob`/`minimatch` y sus consumidores). No se fuerza el downgrade a SDK 53 que sugiere npm, ni se fuerzan versiones mayores incompatibles. Revisar las actualizaciones del SDK antes de publicar.
+El usuario aún no tiene proyectos Supabase/Google. Se incluye [guía de activación](cloud-setup.md) y `.env.example`. No se han aplicado migraciones, probado RLS contra un servidor real ni completado OAuth real. No se considera validada una integración remota solo por pasar las pruebas locales.
+
+## Validación y pendientes
+
+`npm test`: reglas financieras, recurrentes, backup y conflictos de sincronización con transporte simulado. `npm run test:web`: navegador aislado, formularios, persistencia, modo nocturno, JSON descargado, pérdida simulada del almacenamiento, rechazo de archivo inválido, restauración, pausa de recurrente y Excel descargado. `npm run typecheck` y `npm run build:web` verifican tipos y empaquetado. Se necesitan pruebas con cuentas reales y teléfonos Android/iOS antes de publicar. Adjuntos, importación del Excel original, períodos personalizados y edición de movimientos siguen pendientes.
+
+El PDF recibido contiene tres páginas de resumen y referencia una especificación más extensa y un Excel que no se adjuntaron; los detalles no explícitos son decisiones de implementación.
+
+## Procedencia de dependencias
+
+`xlsx` usa un alias a `@e965/xlsx` 0.20.3, redistribución comunitaria de SheetJS CE (repositorio `e965/sheetjs-npm-publisher`); no es un paquete publicado por el equipo oficial. La integridad queda en `package-lock.json`. El CDN oficial estaba bloqueado por la política del entorno inicial; no se desactivó TLS. Se puede migrar al tarball oficial tras habilitarlo y verificar su integridad.
+
+La auditoría del MVP inicial reportó 0 avisos altos/críticos y 12 moderados transitivos en herramientas Expo (`glob`/`minimatch` y consumidores). No se fuerza el downgrade a SDK 53 sugerido por npm ni versiones mayores incompatibles. Revisar actualizaciones antes de producción.
