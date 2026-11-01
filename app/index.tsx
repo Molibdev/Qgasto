@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  AccessibilityInfo,
   Modal,
   Platform,
   Pressable,
@@ -20,6 +22,10 @@ import {
   Command,
   Transaction,
   balance,
+  bankTotal,
+  creditSummary,
+  accountTypeLabel,
+  monthLabel,
   clp,
   contributed,
   monthly,
@@ -27,6 +33,11 @@ import {
   spent,
   today,
 } from "../src/domain/finance";
+import {
+  DateField,
+  CalendarContent,
+  useCalendar,
+} from "../src/components/DateField";
 import { useTheme } from "../src/components/theme";
 import { Settings } from "../src/components/Settings";
 import { useAuth } from "../src/data/auth";
@@ -112,6 +123,8 @@ function Field({
         onChangeText={onChange}
         keyboardType={number ? "numbers-and-punctuation" : "default"}
         style={styles.input}
+        placeholderTextColor={styles.muted.color}
+        selectionColor={styles.link.color}
         autoCapitalize="none"
       />
     </View>
@@ -161,6 +174,7 @@ function Choices({
 }
 export default function Home() {
   const { styles, dark } = useTheme();
+  const calendar = useCalendar();
   const { session } = useAuth();
   const {
     data: s,
@@ -174,7 +188,24 @@ export default function Home() {
     pull,
     syncMessage,
   } = useFinance();
+  const fade = useRef(new Animated.Value(1)).current;
   const [tab, setTab] = useState<Tab>("Inicio");
+  useEffect(() => {
+    let cancelled = false;
+    void AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
+      if (cancelled || reduce) return;
+      fade.setValue(0.3);
+      Animated.timing(fade, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => {
+      cancelled = true;
+      fade.stopAnimation();
+    };
+  }, [tab, fade]);
   const [form, setForm] = useState<Form | null>(null);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -182,6 +213,12 @@ export default function Home() {
   const [account, setAccount] = useState("");
   const [category, setCategory] = useState("");
   const [type, setType] = useState<Account["type"]>("bank");
+  const [editing, setEditing] = useState<Account | null>(null);
+  const [bank, setBank] = useState("");
+  const [bankType, setBankType] = useState<"checking" | "sight">("checking");
+  const [fee, setFee] = useState("0");
+  const [limit, setLimit] = useState("");
+  const [billing, setBilling] = useState("15");
   const [goal, setGoal] = useState("");
   const [note, setNote] = useState("");
   const [month, setMonth] = useState(today().slice(0, 7));
@@ -202,6 +239,12 @@ export default function Home() {
       )?.id ?? "",
     );
     setType("bank");
+    setEditing(null);
+    setBank("");
+    setBankType("checking");
+    setFee("0");
+    setLimit("");
+    setBilling("15");
     setGoal(s?.goals[0]?.id ?? "");
     setNote("");
     setMessage("");
@@ -230,7 +273,19 @@ export default function Home() {
       </SafeAreaView>
     );
   const totals = monthly(s, month);
-  const net = s.accounts.reduce((n, a) => n + balance(s, a.id), 0);
+  const net = bankTotal(s);
+  const editAccount = (a: Account) => {
+    open("account");
+    setEditing(a);
+    setName(a.name);
+    setType(a.type);
+    setAmount(String(a.openingBalance));
+    setBank(a.bank ?? "");
+    setBankType(a.bankType ?? "checking");
+    setFee(String(a.maintenanceFee ?? 0));
+    setLimit(a.creditLimit === undefined ? "" : String(a.creditLimit));
+    setBilling(String(a.billingDay ?? 15));
+  };
   const commit = async (command: Command) => {
     await save(command);
     setForm(null);
@@ -250,12 +305,47 @@ export default function Home() {
       const value = Number(amount);
       const id = randomUUID();
       switch (form) {
-        case "account":
+        case "account": {
+          const integer = (text: string, label: string) => {
+            if (
+              !/^\d+$/.test(text.trim()) ||
+              !Number.isSafeInteger(Number(text)) ||
+              Number(text) > 1e12
+            )
+              throw new Error(
+                `${label}: ingresa un entero positivo o cero, sin separadores`,
+              );
+            return Number(text);
+          };
+          if (type !== "cash" && !bank.trim())
+            throw new Error("Indica el banco o emisor de la cuenta");
+          const metadata =
+            type === "bank"
+              ? {
+                  bank: bank.trim(),
+                  bankType,
+                  maintenanceFee: integer(fee, "Mantención"),
+                }
+              : type === "credit"
+                ? {
+                    bank: bank.trim(),
+                    creditLimit: integer(limit, "Cupo total"),
+                    billingDay: integer(billing, "Día de facturación"),
+                  }
+                : {};
           await commit({
-            kind: "account",
-            value: { id, name, type, openingBalance: value, active: true },
+            kind: editing ? "update-account" : "account",
+            value: {
+              id: editing?.id ?? id,
+              name,
+              type,
+              openingBalance: value,
+              active: editing?.active ?? true,
+              ...metadata,
+            },
           });
           break;
+        }
         case "income":
         case "expense": {
           const t: Transaction = {
@@ -423,81 +513,93 @@ export default function Home() {
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.sectionHead}>
-            <Text style={styles.eyebrow}>
-              {tab === "Inicio" ? "TU RESUMEN" : tab.toUpperCase()}
-            </Text>
-            <TextInput
-              accessibilityLabel="Mes consultado AAAA-MM"
-              value={month}
-              onChangeText={setMonth}
-              style={styles.month}
-              maxLength={7}
-            />
-          </View>
-          {tab === "Inicio" && (
-            <>
-              <View style={styles.hero}>
-                <Text style={styles.heroLabel}>Patrimonio total · CLP</Text>
-                <Text style={styles.heroAmount}>{clp(net)}</Text>
-                <Text style={styles.heroCaption}>
-                  Tus cuentas, incluyendo la deuda de tarjetas
-                </Text>
-                <View style={styles.heroStats}>
-                  <View>
-                    <Text style={styles.heroLabel}>Ingresos del mes</Text>
-                    <Text style={styles.heroSmall}>{clp(totals.income)}</Text>
-                  </View>
-                  <View>
-                    <Text style={styles.heroLabel}>Gastos del mes</Text>
-                    <Text style={styles.heroSmall}>{clp(totals.expense)}</Text>
+          <Animated.View style={{ gap: 22, opacity: fade }}>
+            <View style={styles.sectionHead}>
+              <Text style={styles.eyebrow}>
+                {tab === "Inicio" ? "TU RESUMEN" : tab.toUpperCase()}
+              </Text>
+              <DateField
+                label="Mes consultado"
+                value={month}
+                onChange={setMonth}
+                monthOnly
+              />
+            </View>
+            {tab === "Inicio" && (
+              <>
+                <View style={styles.hero}>
+                  <Text style={styles.heroLabel}>
+                    Patrimonio bancario · CLP
+                  </Text>
+                  <Text style={styles.heroAmount}>{clp(net)}</Text>
+                  <Text style={styles.heroCaption}>
+                    Solo cuentas bancarias · sin tarjetas ni efectivo
+                  </Text>
+                  <View style={styles.heroStats}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.heroLabel}>
+                        Ingresos del mes de {monthLabel(month)}
+                      </Text>
+                      <Text style={styles.heroSmall}>{clp(totals.income)}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.heroLabel}>
+                        Gastos del mes de {monthLabel(month)}
+                      </Text>
+                      <Text style={styles.heroSmall}>
+                        {clp(totals.expense)}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-              <View style={styles.wrap}>
-                <Button label="− Gasto" onPress={() => open("expense")} />
-                <Button
-                  label="+ Ingreso"
-                  secondary
-                  onPress={() => open("income")}
-                />
-              </View>
-              {s.accounts.length === 0 && (
-                <View style={styles.card}>
-                  <Text style={styles.cardTitle}>
-                    Un comienzo más tranquilo
-                  </Text>
-                  <Text style={styles.body}>
-                    Agrega tu primera cuenta y su saldo actual. Después registra
-                    tus movimientos para ver cómo evoluciona tu dinero.
-                  </Text>
-                  <Button
-                    label="Crear mi primera cuenta"
-                    onPress={() => open("account")}
-                  />
-                </View>
-              )}
-              <View style={styles.card}>
-                <Text style={styles.eyebrow}>Balance del mes</Text>
-                <Text style={styles.accountAmount}>{clp(totals.income-totals.expense)}</Text>
-                <Text style={styles.muted}>{totals.income>0?`${Math.round((totals.income-totals.expense)/totals.income*100)}% de tus ingresos queda después de gastos`:'Registra ingresos y gastos para conocer tu balance mensual.'}</Text>
-              </View>
-              {totals.expense>0&&<View style={styles.card}>
-                <Text style={styles.section}>En qué estás gastando</Text>
-                {s.categories.filter(c=>c.type==='expense').map(c=>({...c,total:spent(s,c.id,month)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total).slice(0,4).map(c=><View key={c.id} style={{gap:8}}><View style={styles.row}><Text style={styles.cardTitle}>{c.name}</Text><Text style={styles.muted}>{clp(c.total)}</Text></View><View style={styles.track}><View style={[styles.fill,{width:`${c.total/totals.expense*100}%`}]}/></View></View>)}
-              </View>}
-              {plans}
-              <View style={styles.sectionHead}>
-                <Text style={styles.section}>Últimos movimientos</Text>
-                <Pressable onPress={() => setTab("Actividad")}>
-                  <Text style={styles.link}>Ver todos →</Text>
-                </Pressable>
-              </View>
-            </>
-          )}
-          {(tab === "Inicio" || tab === "Actividad") && (
-            <>
-              {tab === "Actividad" && (
+                {s.accounts.some((a) => a.type === "credit") && (
+                  <View style={styles.card}>
+                    <Text style={styles.eyebrow}>TARJETAS DE CRÉDITO</Text>
+                    {s.accounts
+                      .filter((a) => a.type === "credit")
+                      .map((a) => {
+                        const c = creditSummary(s, a);
+                        return (
+                          <View key={a.id} style={{ gap: 8 }}>
+                            <Text style={styles.cardTitle}>{a.name}</Text>
+                            <Text style={styles.accountAmount}>
+                              {c.available === null
+                                ? "Cupo sin configurar"
+                                : `${clp(c.available)} disponible`}
+                            </Text>
+                            <Text style={styles.muted}>
+                              Cupo total:{" "}
+                              {c.limit === null
+                                ? "sin configurar"
+                                : clp(c.limit)}{" "}
+                              · Deuda: {clp(c.debt)}
+                            </Text>
+                            {c.limit === null && (
+                              <Button
+                                label="Configurar tarjeta"
+                                secondary
+                                onPress={() => editAccount(a)}
+                              />
+                            )}
+                          </View>
+                        );
+                      })}
+                  </View>
+                )}
+                {s.accounts.some((a) => a.type === "cash") && (
+                  <View style={styles.card}>
+                    <Text style={styles.eyebrow}>
+                      Efectivo · separado del patrimonio bancario
+                    </Text>
+                    <Text style={styles.accountAmount}>
+                      {clp(
+                        s.accounts
+                          .filter((a) => a.type === "cash")
+                          .reduce((n, a) => n + balance(s, a.id), 0),
+                      )}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.wrap}>
                   <Button label="− Gasto" onPress={() => open("expense")} />
                   <Button
@@ -505,180 +607,327 @@ export default function Home() {
                     secondary
                     onPress={() => open("income")}
                   />
-                  <Button
-                    label="Exportar Excel"
-                    secondary
-                    onPress={() => open("export")}
-                  />
                 </View>
-              )}
-              {(tab === "Inicio" ? activity.slice(0, 5) : activity).map((t) => (
-                <View key={t.id} style={styles.activity}>
-                  <View
-                    style={[
-                      styles.icon,
-                      {
-                        backgroundColor: styles.secondary.backgroundColor,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{ fontSize: 21, color: styles.cardTitle.color }}
-                    >
-                      {t.kind === "income"
-                        ? "+"
-                        : t.kind === "expense"
-                          ? "−"
-                          : "↔"}
+                {s.accounts.length === 0 && (
+                  <View style={styles.card}>
+                    <Text style={styles.cardTitle}>
+                      Un comienzo más tranquilo
                     </Text>
-                  </View>
-                  <View style={{ flex: 1, gap: 4 }}>
-                    <Text style={styles.cardTitle}>{t.title}</Text>
-                    <Text style={styles.muted}>
-                      {t.detail} · {t.date}
+                    <Text style={styles.body}>
+                      Agrega tu primera cuenta y su saldo actual. Después
+                      registra tus movimientos para ver cómo evoluciona tu
+                      dinero.
                     </Text>
-                  </View>
-                  <Text
-                    style={{ fontWeight: "700", color: styles.cardTitle.color }}
-                  >
-                    {t.kind === "expense"
-                      ? "−"
-                      : t.kind === "income"
-                        ? "+"
-                        : ""}
-                    {clp(t.amount)}
-                  </Text>
-                </View>
-              ))}
-              {activity.length === 0 && (
-                <Text style={styles.empty}>
-                  Aún no hay movimientos en este mes.
-                </Text>
-              )}
-            </>
-          )}
-          {tab === "Cuentas" && (
-            <>
-              <View style={styles.sectionHead}>
-                <Text style={styles.section}>Tu dinero</Text>
-                <Button label="+ Cuenta" onPress={() => open("account")} />
-              </View>
-              {s.accounts.map((a) => (
-                <View style={styles.card} key={a.id}>
-                  <Text style={styles.eyebrow}>{accountTypes[a.type]}</Text>
-                  <Text style={styles.cardTitle}>{a.name}</Text>
-                  <Text style={styles.accountAmount}>
-                    {clp(balance(s, a.id))}
-                  </Text>
-                  {a.type === "credit" && (
-                    <Text style={styles.muted}>
-                      Saldo negativo = deuda pendiente.
-                    </Text>
-                  )}
-                </View>
-              ))}
-              {s.accounts.length === 0 && (
-                <Text style={styles.empty}>
-                  Agrega una cuenta bancaria, efectivo o tarjeta.
-                </Text>
-              )}
-            </>
-          )}
-          {tab === "Planes" && (
-            <>
-              <View style={styles.sectionHead}>
-                <Text style={styles.section}>Pagos recurrentes</Text>
-                <Button
-                  label="+ Recurrente"
-                  onPress={() => open("recurring")}
-                />
-              </View>
-              <Text style={styles.muted}>
-                Gastos mensuales que se registran al abrir la app. La fecha
-                inicial define el día del mes.
-              </Text>
-              {s.recurring.map((r) => (
-                <View style={styles.card} key={r.id}>
-                  <Text style={styles.cardTitle}>
-                    {r.note ||
-                      s.categories.find((c) => c.id === r.categoryId)?.name}
-                  </Text>
-                  <Text style={styles.body}>
-                    {clp(r.amount)} · Próximo: {r.nextDate}
-                  </Text>
-                  <Button
-                    label={r.active ? "Pausar" : "Reanudar"}
-                    secondary
-                    onPress={() => {
-                      void save({ kind: "toggle-recurring", id: r.id }).catch(
-                        (e) => setMessage(e.message),
-                      );
-                    }}
-                  />
-                </View>
-              ))}
-              <View style={styles.card}>
-                <Text style={styles.eyebrow}>Balance del mes</Text>
-                <Text style={styles.accountAmount}>{clp(totals.income-totals.expense)}</Text>
-                <Text style={styles.muted}>{totals.income>0?`${Math.round((totals.income-totals.expense)/totals.income*100)}% de tus ingresos queda después de gastos`:'Registra ingresos y gastos para conocer tu balance mensual.'}</Text>
-              </View>
-              {totals.expense>0&&<View style={styles.card}>
-                <Text style={styles.section}>En qué estás gastando</Text>
-                {s.categories.filter(c=>c.type==='expense').map(c=>({...c,total:spent(s,c.id,month)})).filter(c=>c.total>0).sort((a,b)=>b.total-a.total).slice(0,4).map(c=><View key={c.id} style={{gap:8}}><View style={styles.row}><Text style={styles.cardTitle}>{c.name}</Text><Text style={styles.muted}>{clp(c.total)}</Text></View><View style={styles.track}><View style={[styles.fill,{width:`${c.total/totals.expense*100}%`}]}/></View></View>)}
-              </View>}
-              {plans}
-              <View style={styles.sectionHead}>
-                <Text style={styles.section}>Metas de ahorro</Text>
-                <Button label="+ Meta" secondary onPress={() => open("goal")} />
-              </View>
-              {s.goals.map((g) => (
-                <View style={styles.card} key={g.id}>
-                  <Text style={styles.cardTitle}>{g.name}</Text>
-                  <Text style={styles.muted}>
-                    {s.accounts.find((a) => a.id === g.accountId)?.name}
-                  </Text>
-                  <View style={styles.track}>
-                    <View
-                      style={[
-                        styles.fill,
-                        {
-                          width: `${Math.min(100, (contributed(s, g.id) / g.target) * 100)}%`,
-                        },
-                      ]}
+                    <Button
+                      label="Crear mi primera cuenta"
+                      onPress={() => open("account")}
                     />
                   </View>
-                  <Text style={styles.body}>
-                    {clp(contributed(s, g.id))} de {clp(g.target)}
+                )}
+                <View style={styles.card}>
+                  <Text style={styles.eyebrow}>Balance del mes</Text>
+                  <Text style={styles.accountAmount}>
+                    {clp(totals.income - totals.expense)}
+                  </Text>
+                  <Text style={styles.muted}>
+                    {totals.income > 0
+                      ? `${Math.round(((totals.income - totals.expense) / totals.income) * 100)}% de tus ingresos queda después de gastos`
+                      : "Registra ingresos y gastos para conocer tu balance mensual."}
                   </Text>
                 </View>
-              ))}
-              {!s.goals.length && (
-                <Text style={styles.empty}>
-                  Dale un propósito a tus ahorros.
+                {totals.expense > 0 && (
+                  <View style={styles.card}>
+                    <Text style={styles.section}>En qué estás gastando</Text>
+                    {s.categories
+                      .filter((c) => c.type === "expense")
+                      .map((c) => ({ ...c, total: spent(s, c.id, month) }))
+                      .filter((c) => c.total > 0)
+                      .sort((a, b) => b.total - a.total)
+                      .slice(0, 4)
+                      .map((c) => (
+                        <View key={c.id} style={{ gap: 8 }}>
+                          <View style={styles.row}>
+                            <Text style={styles.cardTitle}>{c.name}</Text>
+                            <Text style={styles.muted}>{clp(c.total)}</Text>
+                          </View>
+                          <View style={styles.track}>
+                            <View
+                              style={[
+                                styles.fill,
+                                {
+                                  width: `${(c.total / totals.expense) * 100}%`,
+                                },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      ))}
+                  </View>
+                )}
+                {plans}
+                <View style={styles.sectionHead}>
+                  <Text style={styles.section}>Últimos movimientos</Text>
+                  <Pressable onPress={() => setTab("Actividad")}>
+                    <Text style={styles.link}>Ver todos →</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+            {(tab === "Inicio" || tab === "Actividad") && (
+              <>
+                {tab === "Actividad" && (
+                  <View style={styles.wrap}>
+                    <Button label="− Gasto" onPress={() => open("expense")} />
+                    <Button
+                      label="+ Ingreso"
+                      secondary
+                      onPress={() => open("income")}
+                    />
+                    <Button
+                      label="Exportar Excel"
+                      secondary
+                      onPress={() => open("export")}
+                    />
+                  </View>
+                )}
+                {(tab === "Inicio" ? activity.slice(0, 5) : activity).map(
+                  (t) => (
+                    <View key={t.id} style={styles.activity}>
+                      <View
+                        style={[
+                          styles.icon,
+                          {
+                            backgroundColor: styles.secondary.backgroundColor,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 21,
+                            color: styles.cardTitle.color,
+                          }}
+                        >
+                          {t.kind === "income"
+                            ? "+"
+                            : t.kind === "expense"
+                              ? "−"
+                              : "↔"}
+                        </Text>
+                      </View>
+                      <View style={{ flex: 1, gap: 4 }}>
+                        <Text style={styles.cardTitle}>{t.title}</Text>
+                        <Text style={styles.muted}>
+                          {t.detail} · {t.date}
+                        </Text>
+                      </View>
+                      <Text
+                        style={{
+                          fontWeight: "700",
+                          color: styles.cardTitle.color,
+                        }}
+                      >
+                        {t.kind === "expense"
+                          ? "−"
+                          : t.kind === "income"
+                            ? "+"
+                            : ""}
+                        {clp(t.amount)}
+                      </Text>
+                    </View>
+                  ),
+                )}
+                {activity.length === 0 && (
+                  <Text style={styles.empty}>
+                    Aún no hay movimientos en este mes.
+                  </Text>
+                )}
+              </>
+            )}
+            {tab === "Cuentas" && (
+              <>
+                <View style={styles.sectionHead}>
+                  <Text style={styles.section}>Tu dinero</Text>
+                  <Button label="+ Cuenta" onPress={() => open("account")} />
+                </View>
+                {s.accounts.map((a) => (
+                  <View style={styles.card} key={a.id}>
+                    <Text style={styles.eyebrow}>{accountTypeLabel(a)}</Text>
+                    <Text style={styles.cardTitle}>{a.name}</Text>
+                    {!!a.bank && <Text style={styles.muted}>{a.bank}</Text>}
+                    {a.type === "bank" && (
+                      <Text style={styles.muted}>
+                        Mantención mensual:{" "}
+                        {a.maintenanceFee === undefined
+                          ? "sin informar"
+                          : clp(a.maintenanceFee)}{" "}
+                        · informativo
+                      </Text>
+                    )}
+                    {a.type === "credit" && (
+                      <Text style={styles.muted}>
+                        Cupo total:{" "}
+                        {a.creditLimit === undefined
+                          ? "sin configurar"
+                          : clp(a.creditLimit)}{" "}
+                        · Facturación:{" "}
+                        {a.billingDay
+                          ? `día ${a.billingDay}`
+                          : "sin configurar"}
+                      </Text>
+                    )}
+                    <Button
+                      label="Editar datos"
+                      secondary
+                      onPress={() => editAccount(a)}
+                    />
+                    <Text style={styles.accountAmount}>
+                      {clp(balance(s, a.id))}
+                    </Text>
+                    {a.type === "credit" && (
+                      <Text style={styles.muted}>
+                        Saldo negativo = deuda pendiente.
+                      </Text>
+                    )}
+                  </View>
+                ))}
+                {s.accounts.length === 0 && (
+                  <Text style={styles.empty}>
+                    Agrega una cuenta bancaria, efectivo o tarjeta.
+                  </Text>
+                )}
+              </>
+            )}
+            {tab === "Planes" && (
+              <>
+                <View style={styles.sectionHead}>
+                  <Text style={styles.section}>Pagos recurrentes</Text>
+                  <Button
+                    label="+ Recurrente"
+                    onPress={() => open("recurring")}
+                  />
+                </View>
+                <Text style={styles.muted}>
+                  Gastos mensuales que se registran al abrir la app. La fecha
+                  inicial define el día del mes.
                 </Text>
-              )}
-              <Button
-                label="Aportar a una meta"
-                secondary
-                onPress={() => open("contribution")}
+                {s.recurring.map((r) => (
+                  <View style={styles.card} key={r.id}>
+                    <Text style={styles.cardTitle}>
+                      {r.note ||
+                        s.categories.find((c) => c.id === r.categoryId)?.name}
+                    </Text>
+                    <Text style={styles.body}>
+                      {clp(r.amount)} · Próximo: {r.nextDate}
+                    </Text>
+                    <Button
+                      label={r.active ? "Pausar" : "Reanudar"}
+                      secondary
+                      onPress={() => {
+                        void save({ kind: "toggle-recurring", id: r.id }).catch(
+                          (e) => setMessage(e.message),
+                        );
+                      }}
+                    />
+                  </View>
+                ))}
+                <View style={styles.card}>
+                  <Text style={styles.eyebrow}>Balance del mes</Text>
+                  <Text style={styles.accountAmount}>
+                    {clp(totals.income - totals.expense)}
+                  </Text>
+                  <Text style={styles.muted}>
+                    {totals.income > 0
+                      ? `${Math.round(((totals.income - totals.expense) / totals.income) * 100)}% de tus ingresos queda después de gastos`
+                      : "Registra ingresos y gastos para conocer tu balance mensual."}
+                  </Text>
+                </View>
+                {totals.expense > 0 && (
+                  <View style={styles.card}>
+                    <Text style={styles.section}>En qué estás gastando</Text>
+                    {s.categories
+                      .filter((c) => c.type === "expense")
+                      .map((c) => ({ ...c, total: spent(s, c.id, month) }))
+                      .filter((c) => c.total > 0)
+                      .sort((a, b) => b.total - a.total)
+                      .slice(0, 4)
+                      .map((c) => (
+                        <View key={c.id} style={{ gap: 8 }}>
+                          <View style={styles.row}>
+                            <Text style={styles.cardTitle}>{c.name}</Text>
+                            <Text style={styles.muted}>{clp(c.total)}</Text>
+                          </View>
+                          <View style={styles.track}>
+                            <View
+                              style={[
+                                styles.fill,
+                                {
+                                  width: `${(c.total / totals.expense) * 100}%`,
+                                },
+                              ]}
+                            />
+                          </View>
+                        </View>
+                      ))}
+                  </View>
+                )}
+                {plans}
+                <View style={styles.sectionHead}>
+                  <Text style={styles.section}>Metas de ahorro</Text>
+                  <Button
+                    label="+ Meta"
+                    secondary
+                    onPress={() => open("goal")}
+                  />
+                </View>
+                {s.goals.map((g) => (
+                  <View style={styles.card} key={g.id}>
+                    <Text style={styles.cardTitle}>{g.name}</Text>
+                    <Text style={styles.muted}>
+                      {s.accounts.find((a) => a.id === g.accountId)?.name}
+                    </Text>
+                    <View style={styles.track}>
+                      <View
+                        style={[
+                          styles.fill,
+                          {
+                            width: `${Math.min(100, (contributed(s, g.id) / g.target) * 100)}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.body}>
+                      {clp(contributed(s, g.id))} de {clp(g.target)}
+                    </Text>
+                  </View>
+                ))}
+                {!s.goals.length && (
+                  <Text style={styles.empty}>
+                    Dale un propósito a tus ahorros.
+                  </Text>
+                )}
+                <Button
+                  label="Aportar a una meta"
+                  secondary
+                  onPress={() => open("contribution")}
+                />
+                <Text style={styles.muted}>
+                  Un aporte asigna saldo existente de la cuenta a la meta; no
+                  crea un gasto ni mueve dinero.
+                </Text>
+              </>
+            )}
+            {tab === "Ajustes" && (
+              <Settings
+                key={session?.user.id ?? "guest"}
+                state={s}
+                restore={restore}
+                sync={sync}
+                pull={pull}
+                syncMessage={syncMessage}
               />
-              <Text style={styles.muted}>
-                Un aporte asigna saldo existente de la cuenta a la meta; no crea
-                un gasto ni mueve dinero.
-              </Text>
-            </>
-          )}
-          {tab === "Ajustes" && (
-            <Settings
-              key={session?.user.id ?? "guest"}
-              state={s}
-              restore={restore}
-              sync={sync}
-              pull={pull}
-              syncMessage={syncMessage}
-            />
-          )}
-          <Text style={styles.footer}>QGASTO · UN PASO A LA VEZ</Text>
+            )}
+            <Text style={styles.footer}>QGASTO · UN PASO A LA VEZ</Text>
+          </Animated.View>
         </ScrollView>
         <View style={styles.nav}>
           {(
@@ -713,172 +962,257 @@ export default function Home() {
         </View>
       </View>
       <Modal
-        visible={form !== null}
+        visible={form !== null || calendar.request !== null}
         transparent
         animationType="slide"
         onRequestClose={() => {
+          if (calendar.request) {
+            calendar.close();
+            return;
+          }
           if (!busy && !saving) setForm(null);
         }}
       >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.overlay}
-        >
-          <View style={styles.sheet}>
-            <ScrollView
-              contentContainerStyle={{ padding: 24, gap: 18 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              <Text style={styles.section}>{form ? titles[form] : ""}</Text>
-              {(form === "account" || form === "goal") && (
-                <Field label="Nombre" value={name} onChange={setName} />
-              )}
-              {form === "account" && (
-                <Choices
-                  label="Tipo de cuenta"
-                  value={type}
-                  onChange={(v) => setType(v as Account["type"])}
-                  options={Object.entries(accountTypes).map(([id, name]) => ({
-                    id,
-                    name,
-                  }))}
-                />
-              )}
-              {(form === "income" ||
-                form === "expense" ||
-                form === "recurring" ||
-                form === "goal") && (
-                <Choices
-                  label="Cuenta"
-                  options={s.accounts.filter(
-                    (a) => form !== "goal" || a.type !== "credit",
-                  )}
-                  value={account}
-                  onChange={setAccount}
-                />
-              )}
-              {(form === "income" ||
-                form === "expense" ||
-                form === "budget" ||
-                form === "recurring") && (
-                <Choices
-                  label="Categoría"
-                  options={s.categories.filter(
-                    (c) =>
-                      c.type === (form === "income" ? "income" : "expense"),
-                  )}
-                  value={category}
-                  onChange={setCategory}
-                />
-              )}
-              {form === "contribution" && (
-                <Choices
-                  label="Meta"
-                  options={s.goals}
-                  value={goal}
-                  onChange={setGoal}
-                />
-              )}
-              {form !== "export" && (
-                <Field
-                  label={
-                    form === "account"
-                      ? "Saldo inicial CLP (negativo si es deuda)"
-                      : form === "goal"
-                        ? "Objetivo CLP"
-                        : "Monto CLP (sin separadores)"
-                  }
-                  number
-                  value={amount}
-                  onChange={setAmount}
-                />
-              )}
-              {form === "budget" && (
-                <Field label="Mes AAAA-MM" value={month} onChange={setMonth} />
-              )}
-              {(form === "income" ||
-                form === "expense" ||
-                form === "recurring" ||
-                form === "contribution" ||
-                form === "export") && (
-                <Field
-                  label={
-                    form === "export" ? "Desde AAAA-MM-DD" : "Fecha AAAA-MM-DD"
-                  }
-                  value={date}
-                  onChange={setDate}
-                />
-              )}
-              {form === "export" && (
-                <>
-                  <Field label="Hasta AAAA-MM-DD" value={to} onChange={setTo} />
-                  <Text style={styles.muted}>
-                    Incluye movimientos del intervalo y saldos actuales de
-                    cuentas y metas. El archivo contiene datos financieros
-                    personales.
+        {calendar.request ? (
+          <CalendarContent />
+        ) : form ? (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
+            style={styles.overlay}
+          >
+            <View style={styles.sheet}>
+              <ScrollView
+                contentContainerStyle={{ padding: 24, gap: 18 }}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.section}>{form ? titles[form] : ""}</Text>
+                {(form === "account" || form === "goal") && (
+                  <Field
+                    label={
+                      form === "account" ? "Nombre de la cuenta" : "Nombre"
+                    }
+                    value={name}
+                    onChange={setName}
+                  />
+                )}
+                {form === "account" && (
+                  <>
+                    <Choices
+                      label="Tipo de cuenta"
+                      value={type === "bank" ? bankType : type}
+                      onChange={(v) => {
+                        if (v === "checking" || v === "sight") {
+                          setType("bank");
+                          setBankType(v);
+                        } else setType(v as Account["type"]);
+                      }}
+                      options={[
+                        { id: "checking", name: "Cuenta corriente" },
+                        { id: "sight", name: "Cuenta vista" },
+                        { id: "credit", name: "Tarjeta de crédito" },
+                        { id: "cash", name: "Efectivo" },
+                      ].filter(
+                        (o) =>
+                          !editing ||
+                          (editing.type === "bank"
+                            ? o.id === "checking" || o.id === "sight"
+                            : o.id === editing.type),
+                      )}
+                    />
+                    {type !== "cash" && (
+                      <>
+                        <Choices
+                          label="Banco o emisor"
+                          value={bank}
+                          onChange={setBank}
+                          options={[
+                            "Santander",
+                            "BancoEstado",
+                            "Banco Falabella",
+                            "Banco de Chile",
+                            "BCI",
+                            "Scotiabank",
+                            "Itaú",
+                          ].map((name) => ({ id: name, name }))}
+                        />
+                        <Field
+                          label="Banco o emisor (puedes escribir otro)"
+                          value={bank}
+                          onChange={setBank}
+                        />
+                      </>
+                    )}
+                    {type === "bank" && (
+                      <>
+                        <Field
+                          label="Mantención mensual CLP"
+                          number
+                          value={fee}
+                          onChange={setFee}
+                        />
+                        <Text style={styles.muted}>
+                          Este costo es informativo. No se cobra ni se registra
+                          automáticamente.
+                        </Text>
+                      </>
+                    )}
+                    {type === "credit" && (
+                      <>
+                        <Field
+                          label="Cupo total CLP"
+                          number
+                          value={limit}
+                          onChange={setLimit}
+                        />
+                        <DateField
+                          label="Día de facturación mensual"
+                          dayOnly
+                          value={billing}
+                          onChange={setBilling}
+                        />
+                      </>
+                    )}
+                  </>
+                )}
+                {(form === "income" ||
+                  form === "expense" ||
+                  form === "recurring" ||
+                  form === "goal") && (
+                  <Choices
+                    label="Cuenta"
+                    options={s.accounts.filter(
+                      (a) => form !== "goal" || a.type !== "credit",
+                    )}
+                    value={account}
+                    onChange={setAccount}
+                  />
+                )}
+                {(form === "income" ||
+                  form === "expense" ||
+                  form === "budget" ||
+                  form === "recurring") && (
+                  <Choices
+                    label="Categoría"
+                    options={s.categories.filter(
+                      (c) =>
+                        c.type === (form === "income" ? "income" : "expense"),
+                    )}
+                    value={category}
+                    onChange={setCategory}
+                  />
+                )}
+                {form === "contribution" && (
+                  <Choices
+                    label="Meta"
+                    options={s.goals}
+                    value={goal}
+                    onChange={setGoal}
+                  />
+                )}
+                {form !== "export" && !(form === "account" && editing) && (
+                  <Field
+                    label={
+                      form === "account"
+                        ? "Saldo inicial CLP (negativo si es deuda)"
+                        : form === "goal"
+                          ? "Objetivo CLP"
+                          : "Monto CLP (sin separadores)"
+                    }
+                    number
+                    value={amount}
+                    onChange={setAmount}
+                  />
+                )}
+                {form === "budget" && (
+                  <DateField
+                    label="Mes del presupuesto"
+                    value={month}
+                    onChange={setMonth}
+                    monthOnly
+                  />
+                )}
+                {(form === "income" ||
+                  form === "expense" ||
+                  form === "recurring" ||
+                  form === "contribution" ||
+                  form === "export") && (
+                  <DateField
+                    label={form === "export" ? "Desde" : "Fecha"}
+                    value={date}
+                    onChange={setDate}
+                  />
+                )}
+                {form === "export" && (
+                  <>
+                    <DateField label="Hasta" value={to} onChange={setTo} />
+                    <Text style={styles.muted}>
+                      Incluye movimientos del intervalo y saldos actuales de
+                      cuentas y metas. El archivo contiene datos financieros
+                      personales.
+                    </Text>
+                  </>
+                )}
+                {(form === "income" ||
+                  form === "expense" ||
+                  form === "recurring") && (
+                  <Field
+                    label="Nota (opcional)"
+                    value={note}
+                    onChange={setNote}
+                  />
+                )}
+                {!!message && (
+                  <Text accessibilityRole="alert" style={styles.error}>
+                    {message}
                   </Text>
-                </>
-              )}
-              {(form === "income" ||
-                form === "expense" ||
-                form === "recurring") && (
-                <Field
-                  label="Nota (opcional)"
-                  value={note}
-                  onChange={setNote}
-                />
-              )}
-              {!!message && (
-                <Text accessibilityRole="alert" style={styles.error}>
-                  {message}
-                </Text>
-              )}
-              {duplicate ? (
-                <View style={{ gap: 12 }}>
-                  <Text style={styles.error}>
-                    Ya existe un movimiento con la misma cuenta, categoría,
-                    fecha y monto. ¿Quieres registrarlo igualmente?
-                  </Text>
+                )}
+                {duplicate ? (
+                  <View style={{ gap: 12 }}>
+                    <Text style={styles.error}>
+                      Ya existe un movimiento con la misma cuenta, categoría,
+                      fecha y monto. ¿Quieres registrarlo igualmente?
+                    </Text>
+                    <Button
+                      label="Registrar igualmente"
+                      disabled={busy || saving}
+                      onPress={() => {
+                        setBusy(true);
+                        void commit({ kind: "transaction", value: duplicate })
+                          .catch((e) => setMessage(e.message))
+                          .finally(() => setBusy(false));
+                      }}
+                    />
+                    <Button
+                      label="Revisar campos"
+                      secondary
+                      onPress={() => setDuplicate(null)}
+                    />
+                  </View>
+                ) : (
                   <Button
-                    label="Registrar igualmente"
+                    label={
+                      busy || saving
+                        ? "Guardando…"
+                        : form === "export"
+                          ? "Generar y compartir XLSX"
+                          : "Guardar"
+                    }
                     disabled={busy || saving}
                     onPress={() => {
-                      setBusy(true);
-                      void commit({ kind: "transaction", value: duplicate })
-                        .catch((e) => setMessage(e.message))
-                        .finally(() => setBusy(false));
+                      void submit();
                     }}
                   />
-                  <Button
-                    label="Revisar campos"
-                    secondary
-                    onPress={() => setDuplicate(null)}
-                  />
-                </View>
-              ) : (
+                )}
                 <Button
-                  label={
-                    busy || saving
-                      ? "Guardando…"
-                      : form === "export"
-                        ? "Generar y compartir XLSX"
-                        : "Guardar"
-                  }
+                  label="Cancelar"
+                  secondary
                   disabled={busy || saving}
-                  onPress={() => {
-                    void submit();
-                  }}
+                  onPress={() => setForm(null)}
                 />
-              )}
-              <Button
-                label="Cancelar"
-                secondary
-                disabled={busy || saving}
-                onPress={() => setForm(null)}
-              />
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
+              </ScrollView>
+            </View>
+          </KeyboardAvoidingView>
+        ) : null}
       </Modal>
     </SafeAreaView>
   );

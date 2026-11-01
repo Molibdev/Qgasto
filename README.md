@@ -17,8 +17,9 @@ Stack: Expo 58, React Native 0.88, React 19.3, Expo Router, TypeScript, TanStack
 
 ## Funciones
 
-- Inicio con patrimonio, resumen mensual, actividad y avisos de presupuesto.
-- Cuentas, ingresos y gastos con validación y advertencia de duplicados.
+- Inicio con patrimonio bancario (sin tarjetas ni efectivo), cupos de tarjetas por separado, resumen mensual y avisos de presupuesto.
+- Cuentas corriente/vista, tarjetas y efectivo: nombre, banco/emisor, mantención mensual informativa y, en tarjetas, cupo y día de facturación. Edición de metadatos sin alterar el saldo inicial.
+- Ingresos y gastos con validación, advertencia de duplicados y selectores de calendario para fechas y meses.
 - Presupuestos por categoría, metas y aportes con control de saldo disponible.
 - Gastos recurrentes mensuales: recuperación de vencimientos al abrir la app, ejecución cada minuto mientras está abierta, pausa/reanudación e IDs idempotentes. Los días 29–31 se ajustan a meses cortos sin perder el día original. Reanudar recupera los vencimientos pendientes.
 - Ajustes: modo claro/nocturno persistido, cuenta, sincronización y respaldos.

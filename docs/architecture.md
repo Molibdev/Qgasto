@@ -47,3 +47,15 @@ El PDF recibido contiene tres páginas de resumen y referencia una especificaci�
 `xlsx` usa un alias a `@e965/xlsx` 0.20.3, redistribución comunitaria de SheetJS CE (repositorio `e965/sheetjs-npm-publisher`); no es un paquete publicado por el equipo oficial. La integridad queda en `package-lock.json`. El CDN oficial estaba bloqueado por la política del entorno inicial; no se desactivó TLS. Se puede migrar al tarball oficial tras habilitarlo y verificar su integridad.
 
 La auditoría del MVP inicial reportó 0 avisos altos/críticos y 12 moderados transitivos en herramientas Expo (`glob`/`minimatch` y consumidores). No se fuerza el downgrade a SDK 53 sugerido por npm ni versiones mayores incompatibles. Revisar actualizaciones antes de producción.
+
+## Cuentas detalladas y resumen bancario
+
+El patrimonio del inicio suma solo cuentas `bank`: no incluye tarjetas ni efectivo. Cada tarjeta muestra cupo configurado, deuda (`max(0,-saldo)`) y disponible (`max(0,cupo-deuda)`). Un saldo a favor no amplía el cupo contratado. Las cuentas antiguas no tienen un cupo supuesto: se presentan como sin configurar y pueden completarse con Editar datos. El efectivo se presenta por separado.
+
+Se añaden metadatos opcionales: banco/emisor, subtipo bancario corriente/vista, mantención mensual CLP, cupo CLP y día de facturación mensual 1–31. No se inventan datos al importar backups antiguos. La mantención es informativa; no se descuenta ni genera cargos. El día de corte se registra como día mensual, no como una fecha fija con año. Todavía no se calculan facturas, vencimientos ni intereses. Editar datos no permite convertir una cuenta bancaria en tarjeta ni modificar el saldo inicial de un historial existente.
+
+Los rótulos de ingresos/gastos indican el nombre del mes mostrado; al iniciar se selecciona el mes actual del dispositivo. El usuario puede consultar otros meses. Los campos de fecha/mes usan `DateField`, un calendario compartido por web/Android/iOS, con navegación de mes y selección de año; el día de facturación usa una selección de 1–31. Las fechas se guardan como ISO local sin convertirlas a UTC.
+
+El rediseño provisional usa tarjetas redondeadas, paleta lavanda, controles amplios, tipografía de sistema y transiciones cortas que respetan reducción de movimiento. Los colores de inputs se asignan explícitamente para evitar texto claro sobre fondo claro en modo nocturno. Google Play devolvió 403 desde el entorno: no fue posible inspeccionar Budge Savings & Budget Planner de Vladimir Chernysh. Esta propuesta no se presenta como reproducción verificada de esa app; la adaptación fiel de la referencia queda pendiente de capturas aportadas por el usuario.
+
+La migración `202611010003_account_details.sql` añade los metadatos a la tabla relacional preparatoria; el cliente sigue sincronizando snapshots JSON. Deben actualizarse todos los clientes antes de editar metadatos nuevos, para evitar que una versión antigua los omita al guardar.

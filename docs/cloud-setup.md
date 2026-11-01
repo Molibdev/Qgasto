@@ -5,7 +5,7 @@ No se necesita ninguna cuenta externa para las funciones locales, los recurrente
 ## 1. Crear Supabase
 
 1. Crea una cuenta en https://supabase.com y un proyecto. Guarda la contraseña de la base de datos en tu gestor de contraseñas.
-2. En el SQL Editor del proyecto ejecuta las migraciones de `supabase/migrations/` en orden: primero `202610310001_core.sql`, después `202611010001_snapshots.sql`. También puedes usar el CLI de Supabase enlazado al proyecto y `supabase db push`.
+2. En el SQL Editor del proyecto ejecuta las migraciones de `supabase/migrations/` en orden: primero `202610310001_core.sql`, después `202611010001_snapshots.sql` y finalmente `202611010003_account_details.sql`. También puedes usar el CLI de Supabase enlazado al proyecto y `supabase db push`.
 3. En la configuración del proyecto copia la URL del proyecto y su clave pública **anon o publishable**. Copia `.env.example` a `.env.local` e introduce ambos valores. Nunca uses una clave `service_role` en Expo. Las variables `EXPO_PUBLIC_*` son públicas y se incluyen en el bundle.
 4. Reinicia Expo. En Ajustes → Cuenta y sincronización puedes crear una cuenta por correo/contraseña. Si está habilitada la confirmación de correo (recomendado), confirma antes de iniciar sesión.
 5. En Authentication → URL Configuration configura Site URL y registra el origen web real que utilizas y `qgasto://` como redirecciones autorizadas para la aplicación nativa. Para producción usa el dominio HTTPS de tu aplicación, sin comodines amplios.

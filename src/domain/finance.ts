@@ -13,6 +13,11 @@ export const accountSchema = z.object({
   id: z.string(),
   name,
   type: z.enum(["bank", "cash", "credit"]),
+  bank: z.string().trim().max(80).optional(),
+  bankType: z.enum(["checking", "sight"]).optional(),
+  maintenanceFee: z.number().int().min(0).max(1e12).optional(),
+  creditLimit: z.number().int().min(0).max(1e12).optional(),
+  billingDay: z.number().int().min(1).max(31).optional(),
   openingBalance: z.number().int().min(-1e12).max(1e12),
   active: z.boolean(),
 });
@@ -84,6 +89,7 @@ export type Command =
   | { kind: "toggle-recurring"; id: string }
   | { kind: "process-recurring"; date: string }
   | { kind: "account"; value: Account }
+  | { kind: "update-account"; value: Account }
   | { kind: "transaction"; value: Transaction }
   | { kind: "transfer"; value: State["transfers"][number] }
   | { kind: "budget"; value: State["budgets"][number] }
@@ -211,6 +217,15 @@ export function apply(s: State, c: Command): State {
     case "process-recurring":
       return processRecurring(s, c.date);
 
+    case "update-account": {
+      const a = accountSchema.parse(c.value),
+        old = account(a.id);
+      if (old.type !== a.type || old.openingBalance !== a.openingBalance)
+        throw new Error(
+          "La edición de datos no permite cambiar el tipo base ni el saldo inicial",
+        );
+      return { ...s, accounts: s.accounts.map((x) => (x.id === a.id ? a : x)) };
+    }
     case "account": {
       const a = accountSchema.parse(c.value);
       return append("accounts", a);
@@ -296,4 +311,38 @@ export function processRecurring(state: State, through: string): State {
     return { ...rule, nextDate };
   });
   return { ...s, recurring };
+}
+
+export function bankTotal(s: State): number {
+  return s.accounts
+    .filter((a) => a.type === "bank")
+    .reduce((n, a) => n + balance(s, a.id), 0);
+}
+export function creditSummary(s: State, a: Account) {
+  const debt = Math.max(0, -balance(s, a.id));
+  return {
+    debt,
+    limit: a.creditLimit ?? null,
+    available:
+      a.creditLimit === undefined ? null : Math.max(0, a.creditLimit - debt),
+  };
+}
+export function monthLabel(month: string): string {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return "mes seleccionado";
+  const d = new Date(`${month}-01T12:00:00Z`);
+  return new Intl.DateTimeFormat("es-CL", {
+    month: "long",
+    timeZone: "UTC",
+  }).format(d);
+}
+export function accountTypeLabel(a: Account): string {
+  return a.type === "credit"
+    ? "Tarjeta de crédito"
+    : a.type === "cash"
+      ? "Efectivo"
+      : a.bankType === "checking"
+        ? "Cuenta corriente"
+        : a.bankType === "sight"
+          ? "Cuenta vista"
+          : "Cuenta bancaria";
 }

@@ -22,13 +22,19 @@ try {
     await button("Cancelar").waitFor({ state: "hidden" });
   };
   await button("Crear mi primera cuenta").click();
-  await field("Nombre").fill("Cuenta principal");
+  await field("Nombre de la cuenta").fill("Cuenta principal");
+  await button("Santander").click();
+  await field("Mantención mensual CLP").fill("3500");
   await field("Saldo inicial CLP (negativo si es deuda)").fill("500000");
   await save();
   await page.getByRole("tab", { name: "Cuentas" }).click();
   await button("+ Cuenta").click();
-  await field("Nombre").fill("Mi tarjeta");
+  await field("Nombre de la cuenta").fill("Mi tarjeta");
   await button("Tarjeta de crédito").click();
+  await button("Banco Falabella").click();
+  await field("Cupo total CLP").fill("300000");
+  await button("Día de facturación mensual").click();
+  await button("Día 20").click();
   await field("Saldo inicial CLP (negativo si es deuda)").fill("0");
   await save();
   await page.getByRole("tab", { name: "Inicio" }).click();
@@ -38,6 +44,8 @@ try {
   await field("Nota (opcional)").fill("Compra mensual");
   await save();
   assert.equal(await button("↔ Transferir").count(), 0);
+  await page.getByText("$200.000 disponible", { exact: true }).waitFor();
+  await page.getByText("Patrimonio bancario · CLP", { exact: true }).waitFor();
   await page.getByRole("tab", { name: "Cuentas" }).click();
   await page.getByText("$500.000", { exact: true }).waitFor();
   const debtLabel = await page.evaluate(() =>
@@ -48,6 +56,15 @@ try {
     }).format(-100000),
   );
   await page.getByText(debtLabel, { exact: true }).waitFor();
+  await button("Editar datos").first().click();
+  await button("Cuenta vista").click();
+  await button("BancoEstado").click();
+  await field("Mantención mensual CLP").fill("4000");
+  await save();
+  await page.getByText("Cuenta vista", { exact: true }).waitFor();
+  await page
+    .getByText("Mantención mensual: $4.000 · informativo", { exact: true })
+    .waitFor();
   await page.reload();
   await page.getByRole("tab", { name: "Cuentas" }).click();
   await page.getByText("Cuenta principal", { exact: true }).waitFor();
@@ -83,10 +100,47 @@ try {
   const contents = JSON.parse(readFileSync(backupPath, "utf8"));
   assert.equal(contents.format, "qgasto-backup");
   assert.equal(contents.data.accounts.length, 2);
+  assert.equal(contents.data.accounts[0].bank, "BancoEstado");
+  assert.equal(contents.data.accounts[0].bankType, "sight");
+  assert.equal(contents.data.accounts[1].creditLimit, 300000);
+  assert.equal(contents.data.accounts[1].billingDay, 20);
   await button("Cambiar a modo nocturno").click();
   await page.reload();
   await page.getByRole("tab", { name: "Ajustes" }).click();
   await button("Cambiar a modo claro").waitFor();
+  await page.getByRole("tab", { name: "Actividad" }).click();
+  await button("− Gasto").click();
+  await field("Monto CLP (sin separadores)").fill("12345");
+  const contrast = await field("Monto CLP (sin separadores)").evaluate(
+    (el) => ({
+      color: getComputedStyle(el).color,
+      bg: getComputedStyle(el).backgroundColor,
+    }),
+  );
+  assert.notEqual(contrast.color, contrast.bg);
+  const luminance = (rgb) => {
+    const a = rgb
+      .match(/\d+/g)
+      .slice(0, 3)
+      .map(Number)
+      .map((n) => {
+        n /= 255;
+        return n <= 0.04045 ? n / 12.92 : ((n + 0.055) / 1.055) ** 2.4;
+      });
+    return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+  };
+  const lum = [luminance(contrast.color), luminance(contrast.bg)].sort(
+    (a, b) => a - b,
+  );
+  assert.ok(
+    (lum[1] + 0.05) / (lum[0] + 0.05) >= 4.5,
+    "Contraste de input nocturno >= 4.5:1",
+  );
+  await button("Fecha").click();
+  await button("Hoy").click();
+  await button("Cancelar").click();
+  await button("Cancelar").waitFor({ state: "hidden" });
+  await page.getByRole("tab", { name: "Ajustes" }).click();
   // Simula reinstalación: perder la base local y recuperar el archivo externo.
   await page.evaluate(() => localStorage.removeItem("qgasto:data:v1"));
   await page.reload();
@@ -118,14 +172,40 @@ try {
   await page.getByRole("tab", { name: "Planes" }).click();
   await button("+ Recurrente").click();
   await field("Monto CLP (sin separadores)").fill("10000");
-  await field("Fecha AAAA-MM-DD").fill("2027-01-31");
+  await button("Fecha").click();
+  await field("Año del calendario").fill("2099");
+  const currentMonth = new Date().toLocaleDateString("en-CA", {
+    month: "2-digit",
+  });
+  await page.screenshot({ path: "/tmp/qgasto-calendar.png" });
+  await button(`2099-${currentMonth}-15`).click();
   await field("Nota (opcional)").fill("Recurrente de prueba");
   await save();
   await page.getByText("Recurrente de prueba", { exact: true }).waitFor();
   await button("Pausar").click();
   await button("Reanudar").waitFor();
+  await page.getByRole("tab", { name: "Cuentas" }).click();
+  await button("+ Cuenta").click();
+  await field("Nombre de la cuenta").fill("Billetera");
+  await button("Efectivo").click();
+  await field("Saldo inicial CLP (negativo si es deuda)").fill("50000");
+  await save();
   await page.getByRole("tab", { name: "Inicio" }).click();
-  await page.screenshot({ path: "/tmp/qgasto-mobile.png", fullPage: true });
+  await page.getByText("$500.000", { exact: true }).waitFor();
+  await page.getByText("$50.000", { exact: true }).waitFor();
+  await button("Mes consultado").click();
+  await field("Año del calendario").fill("2028");
+  await button("Febrero 2028").click();
+  await page
+    .getByText("Ingresos del mes de febrero", { exact: true })
+    .waitFor();
+  await button("Mes consultado").click();
+  await button("Hoy").click();
+  await page.screenshot({
+    path: "/tmp/qgasto-mobile.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   assert.equal(
     await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
@@ -134,11 +214,18 @@ try {
     "Sin overflow horizontal en móvil",
   );
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.screenshot({ path: "/tmp/qgasto-desktop.png", fullPage: true });
+  await page.screenshot({
+    path: "/tmp/qgasto-desktop.png",
+    fullPage: true,
+    animations: "disabled",
+  });
   assert.deepEqual(errors, []);
   console.log(
     "PASS: cuentas, gasto con tarjeta, sin transferencias, persistencia, modo oscuro, backup JSON restaurado, recurrente pausado, presupuesto, meta, aporte, descarga XLSX y diseño móvil/escritorio; sin errores de JavaScript.",
   );
+} catch (error) {
+  await page.screenshot({ path: "/tmp/qgasto-error.png" });
+  throw error;
 } finally {
   await browser.close();
 }

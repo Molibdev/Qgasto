@@ -43,13 +43,29 @@ export function createWorkbook(s: State, from: string, to: string) {
       .map((t) => [t.id, t.date, account(t.fromId), account(t.toId), t.amount]),
   ]);
   add("Cuentas", [
-    ["ID", "Nombre", "Tipo", "Saldo inicial CLP", "Saldo actual CLP"],
+    [
+      "ID",
+      "Nombre",
+      "Tipo",
+      "Saldo inicial CLP",
+      "Saldo actual CLP",
+      "Banco / emisor",
+      "Tipo bancario",
+      "Mantención mensual CLP",
+      "Cupo total CLP",
+      "Día de facturación",
+    ],
     ...s.accounts.map((a) => [
       a.id,
       a.name,
       a.type,
       a.openingBalance,
       balance(s, a.id),
+      a.bank ?? "",
+      a.bankType ?? "",
+      a.maintenanceFee ?? "",
+      a.creditLimit ?? "",
+      a.billingDay ?? "",
     ]),
   ]);
   add("Categorías", [

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { StyleSheet, useColorScheme } from "react-native";
+import { StyleSheet, useColorScheme, Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 const base = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#f5f5ef" },
@@ -180,70 +180,150 @@ const base = StyleSheet.create({
   chipSelected: { backgroundColor: "#2c634a", borderColor: "#2c634a" },
   error: { color: "#a33d2f", fontSize: 14, lineHeight: 21 },
 });
-const darkColors: Record<string, string> = {
-  "#f5f5ef": "#0c1220",
-  "#fffdf7": "#172132",
-  "#fafbf5": "#101a2b",
-  "#e6e9dd": "#29374a",
-  "#e2e7da": "#29374a",
-  "#e4e8dd": "#29374a",
-  "#234c3b": "#edf6ff",
-  "#283f33": "#edf6ff",
-  "#2c4438": "#edf6ff",
-  "#244f3b": "#a5c5ff",
-  "#243c2e": "#eef4ff",
-  "#718078": "#a9b9ce",
-  "#65756b": "#b4c3d4",
-  "#7b867b": "#acbbcf",
-  "#466451": "#c2cfe2",
-  "#cdd8c6": "#35465e",
-  "#cad5c5": "#35465e",
-  "#fff": "#edf4ff",
-  "#e9ede3": "#26364c",
-  "#e6eddf": "#263a53",
-  "#e5eddf": "#253a53",
-  "#365d4b": "#c5dcff",
-  "#28654b": "#a6caff",
-  "#97a18f": "#97a9bf",
-  "#285f48": "#315fd1",
-  "#225741": "#183e86",
-  "#67a78a": "#83acff",
-  "#2c634a": "#315fd1",
-  "#20634c": "#8bb2ff",
-  "#a33d2f": "#ffada3",
-};
-const lightColors: Record<string, string> = {
-  "#f5f5ef": "#f3f6fc",
-  "#fffdf7": "#ffffff",
-  "#fafbf5": "#ffffff",
-  "#225741": "#203b80",
-  "#285f48": "#315fd1",
-  "#2c634a": "#315fd1",
-  "#234c3b": "#193258",
-  "#283f33": "#172947",
-  "#2c4438": "#223653",
-  "#244f3b": "#244685",
-  "#e6eddf": "#e7eefb",
-  "#e9ede3": "#e5ecf8",
-  "#e5eddf": "#e7eefb",
-  "#67a78a": "#749bea",
-  "#28654b": "#315fd1",
-  "#365d4b": "#244685",
-  "#718078": "#627591",
-  "#c3d8ca": "#cfddff",
-  "#c0d2c4": "#c5d4f4",
-  "#47745e": "#49639b",
-};
+// Paleta y tipografía centralizadas; los inputs tienen colores propios para evitar
+// que una sustitución global del blanco deje texto claro sobre fondo claro.
+const colors = (dark: boolean) =>
+  dark
+    ? {
+        bg: "#17161d",
+        surface: "#24222c",
+        text: "#f6f2ff",
+        muted: "#bcb5ca",
+        border: "#3b3548",
+        soft: "#383142",
+        accent: "#b6a1eb",
+        hero: "#c5b3ef",
+        heroText: "#2b203f",
+        input: "#302b3b",
+      }
+    : {
+        bg: "#f8f6fc",
+        surface: "#ffffff",
+        text: "#30263e",
+        muted: "#766c85",
+        border: "#e9e2f0",
+        soft: "#eee7f8",
+        accent: "#77609f",
+        hero: "#e3d6f8",
+        heroText: "#39234f",
+        input: "#f4eff9",
+      };
 function build(dark: boolean) {
-  const remap = (v: any): any =>
-    typeof v === "string"
-      ? dark
-        ? (darkColors[v] ?? v)
-        : (lightColors[v] ?? v)
-      : v && typeof v === "object"
-        ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, remap(x)]))
-        : v;
-  return StyleSheet.create(remap(base)) as typeof base;
+  const c = colors(dark);
+  const font = Platform.select({
+    ios: "Avenir Next",
+    android: "sans-serif",
+    default: "ui-rounded, system-ui, sans-serif",
+  });
+  const result = Object.fromEntries(
+    Object.entries(base).map(([key, value]) => [
+      key,
+      {
+        ...value,
+        ...("fontSize" in value ? { fontFamily: font } : {}),
+        ...("color" in value ? { color: c.text } : {}),
+        ...("borderColor" in value ? { borderColor: c.border } : {}),
+        ...("backgroundColor" in value ? { backgroundColor: c.surface } : {}),
+      },
+    ]),
+  ) as typeof base;
+  return StyleSheet.create({
+    ...result,
+    safe: { ...result.safe, backgroundColor: c.bg },
+    center: { ...result.center, backgroundColor: c.bg },
+    shell: { ...result.shell, maxWidth: 1080 },
+    content: { ...result.content, gap: 22 },
+    logo: { ...result.logo, color: c.text, fontWeight: "800", fontSize: 30 },
+    muted: { ...result.muted, color: c.muted },
+    body: { ...result.body, color: c.muted, lineHeight: 23 },
+    eyebrow: { ...result.eyebrow, color: c.muted, letterSpacing: 1.2 },
+    empty: { ...result.empty, color: c.muted },
+    footer: { ...result.footer, color: c.muted },
+    card: {
+      ...result.card,
+      backgroundColor: c.surface,
+      borderColor: c.border,
+      borderRadius: 26,
+      padding: 22,
+    },
+    hero: {
+      ...result.hero,
+      backgroundColor: c.hero,
+      padding: 26,
+      borderRadius: 30,
+    },
+    heroAmount: {
+      ...result.heroAmount,
+      color: c.heroText,
+      fontWeight: "800",
+      fontSize: 40,
+    },
+    heroLabel: { ...result.heroLabel, color: c.heroText, fontWeight: "600" },
+    heroCaption: { ...result.heroCaption, color: c.heroText },
+    heroSmall: { ...result.heroSmall, color: c.heroText, fontWeight: "700" },
+    heroStats: {
+      ...result.heroStats,
+      borderColor: dark ? "#a38fc9" : "#c8b6df",
+    },
+    button: {
+      ...result.button,
+      backgroundColor: dark ? "#9b82cc" : "#76589f",
+      borderRadius: 22,
+      minHeight: 48,
+    },
+    buttonText: { ...result.buttonText, color: "#ffffff", fontSize: 14 },
+    secondary: { backgroundColor: c.soft },
+    localBadge: { ...result.localBadge, backgroundColor: c.soft },
+    month: { ...result.month, backgroundColor: c.soft, color: c.text },
+    section: { ...result.section, fontSize: 23, fontWeight: "700" },
+    cardTitle: { ...result.cardTitle, fontSize: 16, fontWeight: "600" },
+    accountAmount: {
+      ...result.accountAmount,
+      color: c.text,
+      fontWeight: "700",
+    },
+    track: { ...result.track, backgroundColor: c.soft, height: 9 },
+    fill: { ...result.fill, backgroundColor: c.accent, height: 9 },
+    link: { ...result.link, color: dark ? "#d2bafd" : "#76589f" },
+    nav: {
+      ...result.nav,
+      backgroundColor: c.surface,
+      borderColor: c.border,
+      paddingVertical: 15,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+    },
+    input: {
+      ...result.input,
+      backgroundColor: c.input,
+      color: c.text,
+      borderColor: c.border,
+      borderRadius: 16,
+      minHeight: 50,
+    },
+    label: { ...result.label, color: c.text },
+    chip: {
+      ...result.chip,
+      borderColor: c.border,
+      backgroundColor: c.soft,
+      borderRadius: 18,
+      minHeight: 44,
+      justifyContent: "center",
+    },
+    chipSelected: {
+      ...result.chipSelected,
+      backgroundColor: dark ? "#8465b2" : "#76589f",
+      borderColor: c.accent,
+    },
+    sheet: {
+      ...result.sheet,
+      backgroundColor: c.surface,
+      borderTopLeftRadius: 30,
+      borderTopRightRadius: 30,
+    },
+    overlay: { ...result.overlay, backgroundColor: "rgba(15,10,25,0.65)" },
+    error: { ...result.error, color: dark ? "#ffa69d" : "#a93832" },
+  });
 }
 const ThemeContext = createContext({
   styles: build(false),
