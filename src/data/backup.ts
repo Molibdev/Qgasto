@@ -3,6 +3,7 @@ import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from "expo-document-picker";
 import { State } from "../domain/finance";
+import { pickNativeBackup } from "./nativeBackup";
 import { makeBackup, readBackup, MAX_BACKUP_BYTES } from "../domain/backup";
 export async function downloadBackup(s: State) {
   const text = makeBackup(s),
@@ -67,20 +68,11 @@ export async function pickBackup(): Promise<State | null> {
       reader.readAsText(file);
     });
   } else {
-    const result = await DocumentPicker.getDocumentAsync({
-      // Native providers can label JSON as text or omit its MIME type.
-      // The backup schema below is the authority, not the provider's MIME label.
-      type: "*/*",
-      multiple: false,
-      copyToCacheDirectory: true,
-    });
-    if (result.canceled) return null;
-    const asset = result.assets[0];
-    if (!asset)
-      throw new Error("No se recibió el archivo. Vuelve a seleccionarlo.");
-    if (asset.size && asset.size > MAX_BACKUP_BYTES)
-      throw new Error("La copia supera 10 MB");
-    text = await new File(asset.uri).text();
+    return pickNativeBackup(
+      Platform.OS,
+      DocumentPicker.getDocumentAsync,
+      (uri) => new File(uri).text(),
+    );
   }
   return readBackup(text);
 }
