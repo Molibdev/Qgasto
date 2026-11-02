@@ -519,19 +519,18 @@ export default function Home() {
     <SafeAreaView style={styles.safe}>
       <StatusBar style={dark ? "light" : "dark"} />
       <View style={styles.shell}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingVertical: 8 }]}>
           <View>
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 7 }}
             >
               <Image
                 source={require("../assets/agendapp-mark.png")}
                 accessibilityLabel="Logo de Agendapp"
-                style={{ width: 38, height: 38 }}
+                style={{ width: 28, height: 28 }}
               />
-              <Text style={[styles.logo, { fontSize: 27 }]}>Agendapp</Text>
+              <Text style={[styles.logo, { fontSize: 22 }]}>Agendapp</Text>
             </View>
-            <Text style={styles.muted}>Tus planes. Tus cuentas. Tu ritmo.</Text>
           </View>
           <SettingsToggle
             open={tab === "Ajustes"}
