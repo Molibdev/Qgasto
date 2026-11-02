@@ -18,6 +18,7 @@ export function validateState(input: unknown): State {
     s.goals,
     s.contributions,
     s.recurring,
+    s.events,
   ]) {
     const ids = list.map((x) => x.id);
     if (ids.some((id) => !id) || new Set(ids).size !== ids.length)

@@ -23,6 +23,13 @@ page.on("pageerror", (e) => errors.push(e.message));
 try {
   await page.goto(process.env.QGASTO_URL || "http://127.0.0.1:8081");
   const button = (name) => page.getByRole("button", { name, exact: true });
+  const openSettings = async () => {
+    await page
+      .getByRole("button", { name: /^(Abrir|Cerrar) ajustes$/ })
+      .waitFor();
+    if (await button("Abrir ajustes").count())
+      await button("Abrir ajustes").click();
+  };
   const field = (name) => page.getByRole("textbox", { name, exact: true });
   const save = async () => {
     await button("Guardar").click();
@@ -99,7 +106,7 @@ try {
   assert.equal(wb.SheetNames.length, 9);
   assert.equal(wb.Sheets.Resumen.E2.v, 100000);
   assert.equal(XLSX.utils.sheet_to_json(wb.Sheets.Transferencias).length, 0);
-  await page.getByRole("tab", { name: "Ajustes" }).click();
+  await openSettings();
   const jsonDownload = page.waitForEvent("download");
   await button("Descargar copia JSON").click();
   const backup = await jsonDownload;
@@ -113,7 +120,7 @@ try {
   assert.equal(contents.data.accounts[1].billingDay, 20);
   await button("Cambiar a modo nocturno").click();
   await page.reload();
-  await page.getByRole("tab", { name: "Ajustes" }).click();
+  await openSettings();
   await button("Cambiar a modo claro").waitFor();
   await page.getByRole("tab", { name: "Actividad" }).click();
   await button("− Gasto").click();
@@ -147,12 +154,12 @@ try {
   await button("Hoy").click();
   await button("Cancelar").click();
   await button("Cancelar").waitFor({ state: "hidden" });
-  await page.getByRole("tab", { name: "Ajustes" }).click();
+  await openSettings();
   // Simula reinstalación: perder la base local y recuperar el archivo externo.
   await page.evaluate(() => localStorage.removeItem("qgasto:data:v1"));
   await page.reload();
   await button("Crear mi primera cuenta").waitFor();
-  await page.getByRole("tab", { name: "Ajustes" }).click();
+  await openSettings();
   const canceledChooser = page.waitForEvent("filechooser");
   await button("Cargar copia de seguridad").click();
   await canceledChooser;
@@ -214,7 +221,7 @@ try {
   await button("Mes consultado").click();
   await button("Hoy").click();
   // Category settings and editing both kinds of transactions.
-  await page.getByRole("tab", { name: "Ajustes" }).click();
+  await openSettings();
   await field("Nombre de categoría").fill("Educación");
   await button("Agregar categoría").click();
   await page.getByText("Categoría guardada", { exact: true }).waitFor();
@@ -289,7 +296,7 @@ try {
   );
   // Readable button foreground/background in both themes (WCAG normal text).
   for (const dark of [true, false]) {
-    await page.getByRole("tab", { name: "Ajustes" }).click();
+    await openSettings();
     const switchLabel = dark
       ? "Cambiar a modo claro"
       : "Cambiar a modo nocturno";

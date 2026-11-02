@@ -41,10 +41,12 @@ import {
 } from "../src/components/DateField";
 import { useTheme } from "../src/components/theme";
 import { Settings } from "../src/components/Settings";
+import { SettingsToggle } from "../src/components/SettingsToggle";
+import { Agenda } from "../src/components/Agenda";
 import { useAuth } from "../src/data/auth";
 import { exportExcel } from "../src/data/export";
 
-type Tab = "Inicio" | "Actividad" | "Cuentas" | "Planes" | "Ajustes";
+type Tab = "Inicio" | "Actividad" | "Cuentas" | "Planes" | "Ajustes" | "Agenda";
 type Form =
   | "income"
   | "expense"
@@ -190,9 +192,11 @@ export default function Home() {
     pull,
     syncMessage,
   } = useFinance();
+  const contentScroll = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const fade = useRef(new Animated.Value(1)).current;
   const [tab, setTab] = useState<Tab>("Inicio");
   useEffect(() => {
+    contentScroll.current?.scrollTo({ y: 0, animated: false });
     let cancelled = false;
     void AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
       if (cancelled || reduce) return;
@@ -200,7 +204,7 @@ export default function Home() {
       Animated.timing(fade, {
         toValue: 1,
         duration: 200,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== "web",
       }).start();
     });
     return () => {
@@ -521,13 +525,13 @@ export default function Home() {
             </Text>
             <Text style={styles.muted}>Tu dinero, con intención.</Text>
           </View>
-          <View style={styles.localBadge}>
-            <Text style={{ color: styles.cardTitle.color, fontSize: 12 }}>
-              ● En tu dispositivo
-            </Text>
-          </View>
+          <SettingsToggle
+            open={tab === "Ajustes"}
+            onPress={() => setTab(tab === "Ajustes" ? "Inicio" : "Ajustes")}
+          />
         </View>
         <ScrollView
+          ref={contentScroll}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
         >
@@ -536,12 +540,14 @@ export default function Home() {
               <Text style={styles.eyebrow}>
                 {tab === "Inicio" ? "TU RESUMEN" : tab.toUpperCase()}
               </Text>
-              <DateField
-                label="Mes consultado"
-                value={month}
-                onChange={setMonth}
-                monthOnly
-              />
+              {tab !== "Agenda" && tab !== "Ajustes" && (
+                <DateField
+                  label="Mes consultado"
+                  value={month}
+                  onChange={setMonth}
+                  monthOnly
+                />
+              )}
             </View>
             {tab === "Inicio" && (
               <>
@@ -974,6 +980,13 @@ export default function Home() {
                 </Text>
               </>
             )}
+            {tab === "Agenda" && (
+              <Agenda
+                key={session?.user.id ?? "guest"}
+                events={s.events}
+                save={save}
+              />
+            )}
             {tab === "Ajustes" && (
               <Settings
                 key={session?.user.id ?? "guest"}
@@ -990,11 +1003,12 @@ export default function Home() {
         </ScrollView>
         <View style={styles.nav}>
           {(
-            ["Inicio", "Actividad", "Cuentas", "Planes", "Ajustes"] as Tab[]
+            ["Inicio", "Actividad", "Cuentas", "Planes", "Agenda"] as Tab[]
           ).map((t, i) => (
             <Pressable
               key={t}
               accessibilityRole="tab"
+              accessibilityLabel={t}
               accessibilityState={{ selected: t === tab }}
               aria-selected={t === tab}
               onPress={() => setTab(t)}
@@ -1006,7 +1020,7 @@ export default function Home() {
                   color: tab === t ? styles.link.color : styles.muted.color,
                 }}
               >
-                {["$", "⇅", "▤", "◎", "⚙"][i]}
+                {["$", "⇅", "▤", "◎", "▦"][i]}
               </Text>
               <Text
                 style={{
@@ -1022,7 +1036,9 @@ export default function Home() {
         </View>
       </View>
       <Modal
-        visible={form !== null || calendar.request !== null}
+        visible={
+          form !== null || (calendar.request !== null && tab !== "Agenda")
+        }
         transparent
         animationType="slide"
         onRequestClose={() => {

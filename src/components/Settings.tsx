@@ -212,10 +212,11 @@ export function Settings({
             <Text style={styles.body}>
               Esta copia contiene {pending.accounts.length} cuentas,{" "}
               {pending.transactions.length} movimientos y{" "}
-              {pending.recurring.length} recurrentes. Restaurarla reemplazará
-              los datos de este perfil en el dispositivo y se sincronizará si
-              has iniciado sesión. Descarga antes una copia de los datos
-              actuales si deseas conservarlos.
+              {pending.recurring.length} recurrentes y {pending.events.length}{" "}
+              eventos de agenda. Restaurarla reemplazará los datos de este
+              perfil en el dispositivo y se sincronizará si has iniciado sesión.
+              Descarga antes una copia de los datos actuales si deseas
+              conservarlos.
             </Text>
             {button("Confirmar restauración", () => {
               void run(

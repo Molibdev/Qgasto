@@ -1,13 +1,9 @@
 import { z } from "zod";
+import { dateSchema } from "./dates";
+import { agendaEventSchema, AgendaEvent } from "./agenda";
+export { dateSchema } from "./dates";
 
 export const amountSchema = z.number().int().positive().max(1_000_000_000_000);
-export const dateSchema = z
-  .string()
-  .regex(/^\d{4}-\d{2}-\d{2}$/)
-  .refine((value) => {
-    const d = new Date(`${value}T12:00:00Z`);
-    return !Number.isNaN(d.valueOf()) && d.toISOString().slice(0, 10) === value;
-  }, "Fecha inválida");
 const name = z.string().trim().min(1).max(80);
 export const accountSchema = z.object({
   id: z.string(),
@@ -72,6 +68,7 @@ export const recurringSchema = transactionSchema
   });
 export const stateSchema = z.object({
   version: z.literal(1),
+  events: z.array(agendaEventSchema).default([]),
   recurring: z.array(recurringSchema).default([]),
   accounts: z.array(accountSchema),
   categories: z.array(categorySchema),
@@ -85,6 +82,8 @@ export type State = z.infer<typeof stateSchema>;
 export type Account = State["accounts"][number];
 export type Transaction = State["transactions"][number];
 export type Command =
+  | { kind: "event" | "update-event"; value: AgendaEvent }
+  | { kind: "delete-event"; id: string }
   | { kind: "recurring"; value: z.infer<typeof recurringSchema> }
   | { kind: "toggle-recurring"; id: string }
   | { kind: "process-recurring"; date: string }
@@ -99,6 +98,7 @@ export type Command =
   | { kind: "contribution"; value: State["contributions"][number] };
 export const initialState: State = {
   version: 1,
+  events: [],
   recurring: [],
   accounts: [],
   transactions: [],
@@ -197,6 +197,23 @@ export function apply(s: State, c: Command): State {
     return { ...s, [key]: [...s[key], value] };
   };
   switch (c.kind) {
+    case "event":
+    case "update-event": {
+      const event = agendaEventSchema.parse(c.value);
+      const exists = s.events.some((e) => e.id === event.id);
+      if (c.kind === "event" && exists) return s;
+      if (c.kind === "update-event" && !exists)
+        throw new Error("Evento no encontrado");
+      return {
+        ...s,
+        events: exists
+          ? s.events.map((e) => (e.id === event.id ? event : e))
+          : [...s.events, event],
+      };
+    }
+    case "delete-event":
+      return { ...s, events: s.events.filter((e) => e.id !== c.id) };
+
     case "recurring": {
       const r = recurringSchema.parse(c.value);
       account(r.accountId);
