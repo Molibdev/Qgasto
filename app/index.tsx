@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   ActivityIndicator,
+  Image,
   Animated,
   AccessibilityInfo,
   Modal,
@@ -520,10 +521,17 @@ export default function Home() {
       <View style={styles.shell}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.logo}>
-              qgasto<Text style={{ color: "#78a88e" }}>●</Text>
-            </Text>
-            <Text style={styles.muted}>Tu dinero, con intención.</Text>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
+            >
+              <Image
+                source={require("../assets/agendapp-mark.png")}
+                accessibilityLabel="Logo de Agendapp"
+                style={{ width: 38, height: 38 }}
+              />
+              <Text style={[styles.logo, { fontSize: 27 }]}>Agendapp</Text>
+            </View>
+            <Text style={styles.muted}>Tus planes. Tus cuentas. Tu ritmo.</Text>
           </View>
           <SettingsToggle
             open={tab === "Ajustes"}
@@ -810,7 +818,9 @@ export default function Home() {
             {tab === "Cuentas" && (
               <>
                 <View style={styles.sectionHead}>
-                  <Text style={styles.section}>Tu dinero</Text>
+                  <Text style={styles.section}>
+                    Tus cuentas, en perspectiva
+                  </Text>
                   <Button label="+ Cuenta" onPress={() => open("account")} />
                 </View>
                 {s.accounts.map((a) => (
@@ -998,7 +1008,9 @@ export default function Home() {
                 syncMessage={syncMessage}
               />
             )}
-            <Text style={styles.footer}>QGASTO · UN PASO A LA VEZ</Text>
+            <Text style={styles.footer}>
+              AGENDAPP · DALE ESPACIO A LO QUE IMPORTA
+            </Text>
           </Animated.View>
         </ScrollView>
         <View style={styles.nav}>

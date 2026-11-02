@@ -191,7 +191,7 @@ export function Agenda({
       <View style={styles.sectionHead}>
         <View style={{ gap: 5, flexShrink: 1 }}>
           <Text style={styles.section}>Tu agenda</Text>
-          <Text style={styles.body}>Tus días, en orden.</Text>
+          <Text style={styles.body}>Hazle espacio a lo que viene.</Text>
         </View>
         {button("+ Evento", () => open())}
       </View>

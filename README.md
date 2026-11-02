@@ -1,6 +1,6 @@
-# Qgasto
+# Agendapp
 
-Finanzas personales en español y CLP: cuentas, ingresos, gastos, presupuestos, metas de ahorro y gastos recurrentes. Interfaz adaptable con modo claro/nocturno y almacenamiento local persistente.
+Tus planes. Tus cuentas. Tu ritmo. Agenda personal y finanzas en español y CLP: cuentas, ingresos, gastos, presupuestos, metas de ahorro y gastos recurrentes. Interfaz adaptable con modo claro/nocturno y almacenamiento local persistente.
 
 ## Ejecutar
 
@@ -53,3 +53,5 @@ npm run test:web
 Las pruebas cubren reglas financieras, edición de movimientos, categorías, desglose por medio de pago, recurrentes, respaldo/restauración JSON y flujo de navegador con modo oscuro. El smoke usa emulación táctil, comprueba anchos de 320/390 px, contraste de botones en ambos temas e importación de `datos.json` sin MIME, con BOM y sin `Blob.text`. La importación web usa apertura directa del selector y `FileReader`; la nativa permite proveedores con tipos MIME incorrectos. En Android se lee inmediatamente la URI autorizada por el selector, evitando la copia a una caché fuera del sandbox de la experiencia en Expo Go; iOS conserva la copia a caché. La validación de esquema, límite de 10 MB y confirmación de restauración se mantienen. La prueba de Agenda cubre creación, edición, cancelación y eliminación, persistencia tras recargar, navegación temporal, vistas de mes/semana/día, eventos nocturnos, respaldos, recordatorios sin notificaciones y navegación por Ajustes. La integración remota y las pruebas en teléfonos necesitan los servicios y dispositivos correspondientes.
 
 Más detalles: [arquitectura](docs/architecture.md). La especificación adjunta original contiene tres páginas de resumen y referencia una especificación extensa y un Excel no adjuntados.
+
+La marca visible es Agendapp. Se mantienen el esquema de enlace `qgasto`, el slug y las claves internas de almacenamiento, respaldo y Drive para conservar datos, sesiones, enlaces y copias anteriores. Los iconos reproducen en vector el símbolo del logo proporcionado. Los iconos y el nombre nativo requieren una nueva compilación de la app instalada.

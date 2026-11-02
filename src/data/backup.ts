@@ -7,7 +7,7 @@ import { pickNativeBackup } from "./nativeBackup";
 import { makeBackup, readBackup, MAX_BACKUP_BYTES } from "../domain/backup";
 export async function downloadBackup(s: State) {
   const text = makeBackup(s),
-    name = `Qgasto-respaldo-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    name = `Agendapp-respaldo-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
   if (Platform.OS === "web") {
     const url = URL.createObjectURL(
       new Blob([text], { type: "application/json" }),

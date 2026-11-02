@@ -83,7 +83,9 @@ export function Settings({
     <View style={{ gap: 20 }}>
       <View style={styles.card}>
         <Text style={styles.section}>A tu manera</Text>
-        <Text style={styles.body}>Personaliza tu espacio financiero.</Text>
+        <Text style={styles.body}>
+          Un espacio a tu medida, para tus días y tus cuentas.
+        </Text>
         {button(
           dark ? "Cambiar a modo claro" : "Cambiar a modo nocturno",
           toggle,
@@ -323,8 +325,8 @@ export function Settings({
         <Text style={styles.section}>Google Drive</Text>
         <Text style={styles.body}>
           Conecta tu cuenta Google para guardar y restaurar copias JSON en
-          Drive. Solo se solicita acceso a archivos creados por Qgasto. Conectar
-          Google inicia sesión con esa cuenta y usa su perfil de datos.
+          Drive. Solo se solicita acceso a archivos creados por Agendapp.
+          Conectar Google inicia sesión con esa cuenta y usa su perfil de datos.
         </Text>
         {button(
           "Conectar Google",

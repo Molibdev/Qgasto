@@ -62,7 +62,7 @@ async function driveRequest(
 }
 export async function uploadDrive(token: string, state: State) {
   const boundary = `qgasto_${Date.now()}`;
-  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: `Qgasto-${new Date().toISOString()}.json`, mimeType: "application/json", appProperties: { app: "qgasto", format: "backup-v1" } })}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${makeBackup(state)}\r\n--${boundary}--`;
+  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name: `Agendapp-${new Date().toISOString()}.json`, mimeType: "application/json", appProperties: { app: "qgasto", format: "backup-v1" } })}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${makeBackup(state)}\r\n--${boundary}--`;
   await driveRequest(
     token,
     "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",

@@ -6,7 +6,7 @@ import { State } from "../domain/finance";
 import { createWorkbook } from "../domain/workbook";
 export async function exportExcel(s: State, from: string, to: string) {
   const workbook = createWorkbook(s, from, to);
-  const filename = `Qgasto_${from}_${to}.xlsx`;
+  const filename = `Agendapp_${from}_${to}.xlsx`;
   if (Platform.OS === "web") {
     XLSX.writeFile(workbook, filename);
     return;
